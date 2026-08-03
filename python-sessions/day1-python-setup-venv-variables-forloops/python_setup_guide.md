@@ -66,15 +66,7 @@ After activation your prompt shows `(venv)` prefix:
 
 ---
 
-## 6. Install Packages Inside the venv
-
-```powershell
-pip install pandas pyspark jupyter
-```
-
----
-
-## 7. Save Dependencies to requirements.txt
+## 6. Save Dependencies to requirements.txt
 
 ```powershell
 pip freeze > requirements.txt
