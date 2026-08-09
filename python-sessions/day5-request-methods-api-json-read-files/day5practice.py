@@ -4,7 +4,19 @@ import csv
 import time
 import os
 
+# if you want to call any api in python you need to use request mthod for it
 
+# Get Method- To get the data from API
+# POST Method- To Post the data(to fill the data)
+# Put Method- To Update all the records of the API
+# Patch Method- To Update the partial records in API
+
+# response = requests.get('https://jsonplaceholder.typicode.com/users')
+# data = response.json()
+# # print(data)
+# print(data[0])
+# print(data[0].get('username'))
+# print(data[0].get('address'))
 # ─────────────────────────────────────────────
 # 1. Basic GET request
 # ─────────────────────────────────────────────
@@ -18,6 +30,20 @@ import os
 # print(data[0]["email"])
 # print(data[0]["company"]["name"])   # nested key
 
+# params = {
+#     "userId": 1,
+#     "username": "abc"
+# }
+# response = requests.get(
+#     'https://jsonplaceholder.typicode.com/posts',
+#     # params=params,
+#     timeout=10
+# )
+# posts = response.json()
+# print(posts)
+
+# for post in posts:
+#     print(post.get('title'))
 
 # ─────────────────────────────────────────────
 # 2. Query params
@@ -34,6 +60,96 @@ import os
 # for post in posts:
 #     print(post["id"], post["title"])
 
+
+# Read the files
+# with open method we can read the files and we have multiple modes to open the file
+
+# with close method you need to take care of closing
+# file = open('sample.txt', 'r')
+# data = file.read()
+# print(data)
+# file.close()
+
+
+# using with statement you do not need to close the file, it will handled by with clause
+# with open('sample.txt', 'r') as file:
+#     data = file.read()
+#     print(data)
+
+# Read one line from the file
+# with open('sample.txt', 'r') as file:
+#     data = file.readline()
+#     print(data)
+
+
+# with open('sample.txt', 'r') as file:
+#     data = file.readlines()
+#     for line in data:
+#         print(line)
+
+
+# write methods in file handling
+# with open('sample.txt', 'w') as file:
+#     file.write("Hello Sunil!")
+
+
+# append mode
+# with open('sample.txt', 'a') as file:
+#     file.write("\nWelcome to Data Engineering Daily!")
+
+
+# create new file
+# with open('sample2.txt', 'x') as file:
+#     file.write("Hello Me.")
+
+import csv
+
+# with open('example.csv', 'r') as file:
+#     rows = csv.reader(file)
+#     header = next(rows)
+#     print("header==>", header)
+#     for row in rows:
+#         print('Row==>', row)
+
+# it is going to convert the csv in dictionary format use column names as key and rows as value
+
+# with open('example.csv', 'r') as file:
+#     rows = csv.DictReader(file)
+#     for row in rows:
+#         print(row)
+
+# write mode in csv files
+
+with open('output.csv', 'w', newline="") as file:
+    writer = csv.writer(file)
+    writer.writerow(['id', 'name'])
+    writer.writerow([1, 'venkatesh'])
+
+
+# Json data 
+import json
+
+with open('sample.json', 'r') as file:
+    data = json.load(file)
+    print(data[0])
+
+with open('sample2.json', 'a') as file:
+    json.dump(data, file, indent=4)
+
+
+
+# HTTP METhods
+url = "https://jsonplaceholder.typicode.com/posts"
+
+payload = {
+    "title": "Python",
+    "body": "Learning APIs",
+    "userId": 1
+}
+
+response = requests.post(url, json=payload)
+print(response)
+print(response.status_code)
 
 # ─────────────────────────────────────────────
 # 3. Reading JSON from file

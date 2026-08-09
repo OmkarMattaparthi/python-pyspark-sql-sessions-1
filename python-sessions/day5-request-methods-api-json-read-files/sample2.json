@@ -1,0 +1,203 @@
+[
+    {
+        "order_id": "ORD-1001",
+        "customer_id": 101,
+        "customer_name": "Alice Johnson",
+        "items": [
+            {
+                "product": "Laptop",
+                "qty": 1,
+                "price": 1200.0
+            },
+            {
+                "product": "Mouse",
+                "qty": 2,
+                "price": 25.0
+            }
+        ],
+        "total": 1250.0,
+        "status": "Delivered",
+        "order_date": "2024-01-10",
+        "delivery_date": "2024-01-15"
+    },
+    {
+        "order_id": "ORD-1002",
+        "customer_id": 102,
+        "customer_name": "Bob Smith",
+        "items": [
+            {
+                "product": "Monitor",
+                "qty": 1,
+                "price": 350.0
+            }
+        ],
+        "total": 350.0,
+        "status": "Shipped",
+        "order_date": "2024-01-12",
+        "delivery_date": null
+    },
+    {
+        "order_id": "ORD-1003",
+        "customer_id": 103,
+        "customer_name": "Carol White",
+        "items": [
+            {
+                "product": "Keyboard",
+                "qty": 1,
+                "price": 80.0
+            },
+            {
+                "product": "Webcam",
+                "qty": 1,
+                "price": 60.0
+            },
+            {
+                "product": "USB Hub",
+                "qty": 2,
+                "price": 30.0
+            }
+        ],
+        "total": 200.0,
+        "status": "Processing",
+        "order_date": "2024-01-14",
+        "delivery_date": null
+    },
+    {
+        "order_id": "ORD-1004",
+        "customer_id": 101,
+        "customer_name": "Alice Johnson",
+        "items": [
+            {
+                "product": "Headphones",
+                "qty": 1,
+                "price": 150.0
+            }
+        ],
+        "total": 150.0,
+        "status": "Delivered",
+        "order_date": "2024-01-18",
+        "delivery_date": "2024-01-22"
+    },
+    {
+        "order_id": "ORD-1005",
+        "customer_id": 104,
+        "customer_name": "Dave Brown",
+        "items": [
+            {
+                "product": "SSD 1TB",
+                "qty": 2,
+                "price": 120.0
+            },
+            {
+                "product": "RAM 16GB",
+                "qty": 1,
+                "price": 75.0
+            }
+        ],
+        "total": 315.0,
+        "status": "Cancelled",
+        "order_date": "2024-01-20",
+        "delivery_date": null
+    }
+][{"order_id": "ORD-1001", "customer_id": 101, "customer_name": "Alice Johnson", "items": [{"product": "Laptop", "qty": 1, "price": 1200.0}, {"product": "Mouse", "qty": 2, "price": 25.0}], "total": 1250.0, "status": "Delivered", "order_date": "2024-01-10", "delivery_date": "2024-01-15"}, {"order_id": "ORD-1002", "customer_id": 102, "customer_name": "Bob Smith", "items": [{"product": "Monitor", "qty": 1, "price": 350.0}], "total": 350.0, "status": "Shipped", "order_date": "2024-01-12", "delivery_date": null}, {"order_id": "ORD-1003", "customer_id": 103, "customer_name": "Carol White", "items": [{"product": "Keyboard", "qty": 1, "price": 80.0}, {"product": "Webcam", "qty": 1, "price": 60.0}, {"product": "USB Hub", "qty": 2, "price": 30.0}], "total": 200.0, "status": "Processing", "order_date": "2024-01-14", "delivery_date": null}, {"order_id": "ORD-1004", "customer_id": 101, "customer_name": "Alice Johnson", "items": [{"product": "Headphones", "qty": 1, "price": 150.0}], "total": 150.0, "status": "Delivered", "order_date": "2024-01-18", "delivery_date": "2024-01-22"}, {"order_id": "ORD-1005", "customer_id": 104, "customer_name": "Dave Brown", "items": [{"product": "SSD 1TB", "qty": 2, "price": 120.0}, {"product": "RAM 16GB", "qty": 1, "price": 75.0}], "total": 315.0, "status": "Cancelled", "order_date": "2024-01-20", "delivery_date": null}][
+    {
+        "order_id": "ORD-1001",
+        "customer_id": 101,
+        "customer_name": "Alice Johnson",
+        "items": [
+            {
+                "product": "Laptop",
+                "qty": 1,
+                "price": 1200.0
+            },
+            {
+                "product": "Mouse",
+                "qty": 2,
+                "price": 25.0
+            }
+        ],
+        "total": 1250.0,
+        "status": "Delivered",
+        "order_date": "2024-01-10",
+        "delivery_date": "2024-01-15"
+    },
+    {
+        "order_id": "ORD-1002",
+        "customer_id": 102,
+        "customer_name": "Bob Smith",
+        "items": [
+            {
+                "product": "Monitor",
+                "qty": 1,
+                "price": 350.0
+            }
+        ],
+        "total": 350.0,
+        "status": "Shipped",
+        "order_date": "2024-01-12",
+        "delivery_date": null
+    },
+    {
+        "order_id": "ORD-1003",
+        "customer_id": 103,
+        "customer_name": "Carol White",
+        "items": [
+            {
+                "product": "Keyboard",
+                "qty": 1,
+                "price": 80.0
+            },
+            {
+                "product": "Webcam",
+                "qty": 1,
+                "price": 60.0
+            },
+            {
+                "product": "USB Hub",
+                "qty": 2,
+                "price": 30.0
+            }
+        ],
+        "total": 200.0,
+        "status": "Processing",
+        "order_date": "2024-01-14",
+        "delivery_date": null
+    },
+    {
+        "order_id": "ORD-1004",
+        "customer_id": 101,
+        "customer_name": "Alice Johnson",
+        "items": [
+            {
+                "product": "Headphones",
+                "qty": 1,
+                "price": 150.0
+            }
+        ],
+        "total": 150.0,
+        "status": "Delivered",
+        "order_date": "2024-01-18",
+        "delivery_date": "2024-01-22"
+    },
+    {
+        "order_id": "ORD-1005",
+        "customer_id": 104,
+        "customer_name": "Dave Brown",
+        "items": [
+            {
+                "product": "SSD 1TB",
+                "qty": 2,
+                "price": 120.0
+            },
+            {
+                "product": "RAM 16GB",
+                "qty": 1,
+                "price": 75.0
+            }
+        ],
+        "total": 315.0,
+        "status": "Cancelled",
+        "order_date": "2024-01-20",
+        "delivery_date": null
+    }
+]
