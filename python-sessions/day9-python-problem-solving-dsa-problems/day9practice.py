@@ -75,20 +75,160 @@
 # Convert names to title case.
 
 
-list1 = [1, 2, 3, 4, 5]
+# list1 = [1, 2, 3, 4, 5]
 
-for num in list1:
-    if num > 3:
-        break
-    print(num)
+# for num in list1:
+#     if num > 3:
+#         break
+#     print(num)
 
 
-customers = [
-    {"id": 101, "name": "Amit", "email": "amit@gmail.com"},
-    {"id": 102, "name": "Rahul", "email": "rahul@gmail.com"},
-    {"id": 101, "name": "Amit", "email": "amit@gmail.com"},
-    {"id": 103, "name": "Priya", "email": "priya@gmail.com"},
-    {"id": 102, "name": "Rahul", "email": "rahul@gmail.com"}
-]
+# lsit_1 =  [1, 2, 1, 3, 4, 2]
+
+# output=[]
+# iter1
+# output = [1, 2, 3, 4]
+
+# # iter2
+
+# output [1, 2, 3, 4]
+
+
 
 # Remove duplicates based on id
+# Hashset
+
+# customers = [
+#     {"id": 101, "name": "Amit", "email": "amit@gmail.com", "weight": 44},
+#     {"id": 102, "name": "Rahul", "email": "rahul@gmail.com", "weight": 87},
+#     {"id": 101, "name": "Amit", "email": "amit@gmail.com", "weight": 65},
+#     {"id": 103, "name": "Priya", "email": "priya@gmail.com", "weight": 61},
+#     {"id": 102, "name": "Rahul", "email": "rahul@gmail.com", "weight": 70}
+# ]
+
+
+# output = {}
+
+# for customer in customers:
+#     output[customer[id]] = customer
+# print(list(output.values()))
+
+# # 1st Iteration = o
+# output = {101: {"id": 101, "name": "Amit", "email": "amit@gmail.com", "weight": 44}}
+
+# # 2nd iteration 
+# output = {
+#     101: {"id": 101, "name": "Amit", "email": "amit@gmail.com", "weight": 44},
+#     102: {"id": 102, "name": "Rahul", "email": "rahul@gmail.com", "weight": 87}
+# }
+
+# # 3rd Iteration
+# output = {
+#     101: {"id": 101, "name": "Amit", "email": "amit@gmail.com", "weight": 65},
+#     102: {"id": 102, "name": "Rahul", "email": "rahul@gmail.com", "weight": 87},
+
+# }
+
+# # 4th iteration
+# output = {
+#     101: {"id": 101, "name": "Amit", "email": "amit@gmail.com", "weight": 65},
+#     102: {"id": 102, "name": "Rahul", "email": "rahul@gmail.com", "weight": 87},
+#     103: {"id": 103, "name": "Priya", "email": "priya@gmail.com", "weight": 61},
+# }
+
+# # 5th iteration
+# output = {
+#     101: {"id": 101, "name": "Amit", "email": "amit@gmail.com", "weight": 65},
+#     102: {"id": 102, "name": "Rahul", "email": "rahul@gmail.com", "weight": 70},
+#     103: {"id": 103, "name": "Priya", "email": "priya@gmail.com", "weight": 61},
+# }
+
+# output.values()
+# list({"id": 101, "name": "Amit", "email": "amit@gmail.com", "weight": 65}, {"id": 102, "name": "Rahul", "email": "rahul@gmail.com", "weight": 70})
+
+
+# my_set = set()
+
+# output = []
+
+# for customer in customers[::-1]:
+
+#     id = customer["id"]
+#     if id not in my_set:
+#         output.append(customer)
+#         my_set.add(id)
+#     print(output)
+
+
+# emails = [
+#     "  AMIT@GMAIL.COM ",
+#     "rahul@gmail.com",
+#     "priya@gmail",
+#     "",
+#     "  raj@yahoo.com",
+#     "invalid-email",
+#     None,
+#     "rahul.kumar@gmail"
+# ]
+# Requirements:
+
+# Handle None
+# Remove spaces
+# Convert to lowercase
+# Validate @
+# Validate .
+# Return None for invalid emails
+
+
+# for email in emails:
+#     if email is None:
+#         continue
+#     email = email.strip().lower()
+
+#     if email == "" or "@" not in email or "." not in email.split('@')[1]:
+#         continue
+
+#     print(email)
+
+
+# employees = [
+#     {"id": 1, "name": "Amit", "salary": 50000},
+#     {"id": 2, "name": "Rahul"},
+#     {"id": 3, "name": "Priya", "salary": None},
+#     {"id": 4, "name": "Raj", "salary": 70000}
+# ]
+
+# for employee in employees:
+#     if employee.get("salary"):
+#         employee["salary_status"] = "available"
+#     else:
+#         employee["salary"] = 0
+#         employee["salary_status"] = "missing"
+#     print(employee)
+
+
+
+# employees_output = [
+#     {"id": 1, "name": "Amit", "salary": 50000, "salary_status": "available"},
+#     {"id": 2, "name": "Rahul", "salary": 0, "salary_status": "missing"},
+#     {"id": 3, "name": "Priya", "salary": 0, "salary_status": "missing"},
+#     {"id": 4, "name": "Raj", "salary": 70000, "salary_status": "available"}
+# ]
+
+
+
+transactions = [
+    {"id": 1, "customer": "Amit", "amount": 500},
+    {"id": 2, "customer": "Rahul", "amount": -100},
+    {"id": 3, "customer": "Priya", "amount": 700},
+    {"id": 4, "customer": "Raj", "amount": None},
+    {"id": 5, "customer": "Amit", "amount": 500},
+    {"id": 3, "customer": "Priya", "amount": 700}
+]
+
+# Find:
+
+# Negative amounts
+# Missing amounts
+# Duplicate transaction IDs
+# Valid transactions
