@@ -3,7 +3,7 @@ import requests
 from config.settings import API_BASE_URL
 
 
-def fetch_payments(token, load_type="full", last_updated_at=None):
+def fetch_payments(token, load_type="full", last_updated_at=None, max_pages=None):
     url = f"{API_BASE_URL}/api/db/payments/"
     headers = {"Authorization": f"Token {token}"}
 
@@ -36,6 +36,10 @@ def fetch_payments(token, load_type="full", last_updated_at=None):
         print(f"Page {page}/{total_pages} — fetched {len(records)} records")
 
         if page >= total_pages:
+            break
+
+        if max_pages and page >= max_pages:
+            print(f"Reached max_pages limit ({max_pages}), stopping early")
             break
 
         page += 1
