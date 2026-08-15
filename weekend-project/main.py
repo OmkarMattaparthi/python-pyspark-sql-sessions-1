@@ -1,124 +1,47 @@
-"""
-VoltGrid Payments ETL Pipeline
-================================
-Usage:
-    python main.py               # incremental load (default)
-    python main.py --full        # full load (ignores last run cursor)
-    python main.py --mode full
-    python main.py --mode incremental
-"""
-
-import argparse
-from datetime import datetime, timezone
-
 from api.auth import get_token
 from database.connection import get_connection
-from etl.extractor import fetch_all_payments
+from etl.extractor import fetch_payments
 from etl.transformer import transform_payments
-from etl.loader import (
-    ensure_schema,
-    ensure_payments_table,
-    ensure_metadata_table,
-    get_last_updated_at,
-    upsert_payments,
-    get_max_updated_at,
-    write_metadata,
-)
+from etl.loader import create_tables, get_last_updated_at, insert_payments, save_pipeline_metadata
 
+# choose load type: "full" or "incremental"
+LOAD_TYPE = "incremental"
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="VoltGrid Payments ETL Pipeline")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--full", action="store_true", help="Force a full load")
-    group.add_argument("--mode", choices=["full", "incremental"], default="incremental",
-                       help="Load mode (default: incremental)")
-    args = parser.parse_args()
-    if args.full:
-        args.mode = "full"
-    return args
+# Step 1: connect to DB
+connection = get_connection()
 
+# Step 2: create tables if not exist
+create_tables(connection)
 
-def main():
-    args = parse_args()
-    started_at = datetime.now(timezone.utc)
+# Step 3: get auth token
+token = get_token()
 
-    print("=" * 60)
-    print(f"  VoltGrid Payments Pipeline — mode={args.mode.upper()}")
-    print(f"  Started at: {started_at.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-    print("=" * 60)
+# Step 4: decide load type
+last_updated_at = None
+if LOAD_TYPE == "incremental":
+    last_updated_at = get_last_updated_at(connection)
+    print("Last updated at:", last_updated_at)
 
-    conn   = None
-    status = "failed"
-    records_fetched = records_inserted = records_skipped = 0
-    last_updated_at = None
+    if last_updated_at is None:
+        print("No previous run found, switching to full load")
+        LOAD_TYPE = "full"
 
-    try:
-        # ── 1. DB setup ──────────────────────────────────────────────
-        conn = get_connection()
-        ensure_schema(conn)
-        ensure_payments_table(conn)
-        ensure_metadata_table(conn)
+# Step 5: fetch data from API
+raw_records = fetch_payments(token, load_type=LOAD_TYPE, last_updated_at=last_updated_at)
 
-        # ── 2. Determine load cursor ─────────────────────────────────
-        updated_after = None
-        if args.mode == "incremental":
-            updated_after = get_last_updated_at(conn)
-            if updated_after:
-                print(f"[main] Incremental load — fetching records updated after: {updated_after}")
-            else:
-                print("[main] No previous successful run found — falling back to full load")
+# Step 6: transform
+clean_records = transform_payments(raw_records)
 
-        # ── 3. Authenticate ──────────────────────────────────────────
-        token = get_token()
+# Step 7: insert into DB
+insert_payments(connection, clean_records)
 
-        # ── 4. Extract ───────────────────────────────────────────────
-        raw_records = fetch_all_payments(token, updated_after=updated_after)
-        records_fetched = len(raw_records)
+# Step 8: save metadata for next incremental run
+if clean_records:
+    max_updated_at = max(r["updated_at"] for r in clean_records)
+else:
+    max_updated_at = last_updated_at
 
-        # ── 5. Transform ─────────────────────────────────────────────
-        clean_records, records_skipped = transform_payments(raw_records)
+save_pipeline_metadata(connection, LOAD_TYPE, len(clean_records), max_updated_at)
 
-        # ── 6. Load ──────────────────────────────────────────────────
-        if clean_records:
-            records_inserted = upsert_payments(conn, clean_records)
-            last_updated_at  = get_max_updated_at(clean_records)
-        else:
-            print("[main] No valid records to load")
-
-        status = "success"
-
-    except Exception as e:
-        print(f"\n[main] Pipeline FAILED: {e}")
-        status = "failed"
-        raise
-
-    finally:
-        # ── 7. Write metadata (always, even on failure) ──────────────
-        if conn:
-            try:
-                write_metadata(
-                    conn        = conn,
-                    load_type   = args.mode,
-                    status      = status,
-                    records_fetched  = records_fetched,
-                    records_inserted = records_inserted,
-                    records_skipped  = records_skipped,
-                    last_updated_at  = last_updated_at,
-                    started_at       = started_at,
-                )
-            except Exception as meta_err:
-                print(f"[main] Warning: could not write metadata — {meta_err}")
-            conn.close()
-            print("[main] DB connection closed")
-
-        print("=" * 60)
-        print(f"  Status   : {status.upper()}")
-        print(f"  Fetched  : {records_fetched}")
-        print(f"  Inserted : {records_inserted}")
-        print(f"  Skipped  : {records_skipped}")
-        print(f"  Cursor   : {last_updated_at}")
-        print("=" * 60)
-
-
-if __name__ == "__main__":
-    main()
+connection.close()
+print("Pipeline complete")
