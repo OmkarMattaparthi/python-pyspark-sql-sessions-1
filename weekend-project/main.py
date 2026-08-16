@@ -5,7 +5,7 @@ from etl.transformer import transform_payments
 from etl.loader import create_tables, get_last_updated_at, insert_payments, save_pipeline_metadata
 
 # choose load type: "full" or "incremental"
-LOAD_TYPE = "full"
+LOAD_TYPE = "incremental" # Full/Incremental
 
 # Step 1: connect to DB
 connection = get_connection()
@@ -27,7 +27,12 @@ if LOAD_TYPE == "incremental":
         LOAD_TYPE = "full"
 
 # Step 5: fetch data from API
-raw_records = fetch_payments(token, load_type=LOAD_TYPE, last_updated_at=last_updated_at, max_pages=5)
+raw_records = fetch_payments(
+    token,
+    load_type=LOAD_TYPE,
+    last_updated_at=last_updated_at,
+    max_pages=5
+)
 
 # Step 6: transform
 clean_records = transform_payments(raw_records)
@@ -41,7 +46,12 @@ if clean_records:
 else:
     max_updated_at = last_updated_at
 
-save_pipeline_metadata(connection, LOAD_TYPE, len(clean_records), max_updated_at)
+save_pipeline_metadata(
+    connection,
+    LOAD_TYPE,
+    len(clean_records),
+    max_updated_at
+)
 
 connection.close()
 print("Pipeline complete")
