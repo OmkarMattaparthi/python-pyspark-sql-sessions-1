@@ -3,8 +3,9 @@ import requests
 from config.settings import API_BASE_URL
 
 
-def fetch_payments(token, load_type="full", last_updated_at=None, max_pages=None):
-    url = f"{API_BASE_URL}/api/db/payments/"
+def _fetch(token, endpoint, load_type="full", last_updated_at=None, max_pages=None):
+    """Generic paginated fetch — same pattern for every API."""
+    url = f"{API_BASE_URL}{endpoint}"
     headers = {"Authorization": f"Token {token}"}
 
     all_records = []
@@ -14,7 +15,7 @@ def fetch_payments(token, load_type="full", last_updated_at=None, max_pages=None
     while True:
         params = {"page": page, "page_size": page_size}
 
-        # incremental load — pass updated_after to filter only new records
+        # incremental load — filter only records updated after last run
         if load_type == "incremental" and last_updated_at:
             params["updated_after"] = last_updated_at
 
@@ -22,28 +23,59 @@ def fetch_payments(token, load_type="full", last_updated_at=None, max_pages=None
 
         # rate limit hit — wait and retry
         if response.status_code == 429:
-            print("Rate limit hit, waiting 10 seconds...")
+            print(f"Rate limit hit on {endpoint}, waiting 10 seconds...")
             time.sleep(10)
             continue
 
-        print(f"Page {page} status: {response.status_code}")
+        print(f"  Page {page} status: {response.status_code}")
         data = response.json()
 
         records     = data["data"]
         total_pages = data["pagination"]["total_pages"]
 
         all_records.extend(records)
-        print(f"Page {page}/{total_pages} — fetched {len(records)} records")
+        print(f"  Page {page}/{total_pages} — {len(records)} records")
 
         if page >= total_pages:
             break
 
         if max_pages and page >= max_pages:
-            print(f"Reached max_pages limit ({max_pages}), stopping early")
+            print(f"  Reached max_pages limit ({max_pages}), stopping early")
             break
 
         page += 1
         time.sleep(0.3)   # small pause between pages to avoid rate limit
 
-    print(f"Total records fetched: {len(all_records)}")
+    print(f"  Total fetched: {len(all_records)}")
     return all_records
+
+
+# ── Public fetch functions — one per API ────────────────────────────────────
+
+def fetch_payments(token, load_type="full", last_updated_at=None, max_pages=None):
+    print("Fetching: payments")
+    return _fetch(token, "/api/db/payments/", load_type, last_updated_at, max_pages)
+
+def fetch_sessions(token, load_type="full", last_updated_at=None, max_pages=None):
+    print("Fetching: charging sessions")
+    return _fetch(token, "/api/db/sessions/", load_type, last_updated_at, max_pages)
+
+def fetch_customers(token, load_type="full", last_updated_at=None, max_pages=None):
+    print("Fetching: customers")
+    return _fetch(token, "/api/db/customers/", load_type, last_updated_at, max_pages)
+
+def fetch_vehicles(token, load_type="full", last_updated_at=None, max_pages=None):
+    print("Fetching: vehicles")
+    return _fetch(token, "/api/db/vehicles/", load_type, last_updated_at, max_pages)
+
+def fetch_stations(token, load_type="full", last_updated_at=None, max_pages=None):
+    print("Fetching: charging stations")
+    return _fetch(token, "/api/db/stations/", load_type, last_updated_at, max_pages)
+
+def fetch_partners(token, load_type="full", last_updated_at=None, max_pages=None):
+    print("Fetching: partners")
+    return _fetch(token, "/api/db/partners/", load_type, last_updated_at, max_pages)
+
+def fetch_energy_prices(token, load_type="full", last_updated_at=None, max_pages=None):
+    print("Fetching: energy prices")
+    return _fetch(token, "/api/db/energy-prices/", load_type, last_updated_at, max_pages)
