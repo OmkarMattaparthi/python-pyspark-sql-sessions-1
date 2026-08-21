@@ -4,27 +4,162 @@
 -- Prerequisite: run day1_practice.sql first to create company schema & tables
 --
 -- Tables used:
---   company.employees    — emp_id, first_name, last_name, email, salary, dept_id, hire_date, status, manager_id
---   company.departments  — dept_id, dept_name, location
---   company.projects     — project_id, project_name, dept_id  (created in Section 8)
---   company.employee_projects — emp_id, project_id, role       (created in Section 8)
+--   company.employees         — emp_id, first_name, last_name, email, salary, dept_id, hire_date, status, manager_id
+--   company.departments       — dept_id, dept_name, location
+--   company.projects          — project_id, project_name, dept_id  (created below)
+--   company.employee_projects — emp_id, project_id, role            (created below)
 
 
 -- ===============================================================
--- SETUP — extend the schema for Day 3 examples
+-- DATA SETUP — fresh, purposeful data for all JOIN demonstrations
 -- ===============================================================
 --
--- Add manager_id to employees so we can demonstrate SELF JOIN.
--- manager_id references another row in the same employees table.
--- This is a self-referencing foreign key — the basis of org-chart data.
+-- We reset and reload data here so every JOIN produces clearly visible results.
+-- Each table is designed with specific "interesting" rows:
+--
+--   departments  → 5 depts: 3 have employees, 2 are empty (visible in LEFT/RIGHT/FULL JOIN)
+--   employees    → 8 employees: 6 linked to depts, 1 with NULL dept_id, 1 with invalid dept_id
+--                  (visible in LEFT JOIN anti-join and FULL OUTER JOIN)
+--   projects     → 4 projects: 3 linked to depts, 1 standalone
+--   employee_projects → some employees have 0, 1, or 2 projects
+--                  (visible in multi-table JOIN and row-multiplication demo)
+--
+-- What each JOIN will show:
+--   INNER JOIN          → 6 employees with a matching dept (emp 7 and 8 excluded)
+--   LEFT JOIN           → all 8 employees; emp 7 (NULL dept) and emp 8 (bad dept) show NULL dept_name
+--   RIGHT JOIN          → all 5 depts; 'Operations' and 'Legal' show NULL for employee cols
+--   FULL OUTER JOIN     → everything: 8 employees + 2 empty depts all in one result
+--   SELF JOIN (manager) → emp 1 = CEO (no manager), emps 2-5 report to emp 1, emps 6-8 report to emp 2
+--   CROSS JOIN          → 8 employees × 5 departments = 40 rows
+--   Multi-table JOIN    → employees → dept → projects via employee_projects
+-- ---------------------------------------------------------------
 
+
+-- Step 1: Wipe existing data (order matters — child tables first)
+TRUNCATE company.employees    RESTART IDENTITY CASCADE;
+TRUNCATE company.departments  RESTART IDENTITY CASCADE;
+
+
+-- Step 2: Departments — 5 rows, 2 intentionally empty (no employees will link to them)
+--
+--   dept_id | dept_name    | location
+--   --------+--------------+------------
+--      1    | Engineering  | Pune          ← has employees
+--      2    | Marketing    | Mumbai        ← has employees
+--      3    | HR           | Bangalore     ← has employees
+--      4    | Operations   | Delhi         ← EMPTY — visible in LEFT/RIGHT/FULL JOIN
+--      5    | Legal        | Chennai       ← EMPTY — visible in LEFT/RIGHT/FULL JOIN
+
+INSERT INTO company.departments (dept_name, location) VALUES
+    ('Engineering', 'Pune'),        -- dept_id = 1
+    ('Marketing',   'Mumbai'),      -- dept_id = 2
+    ('HR',          'Bangalore'),   -- dept_id = 3
+    ('Operations',  'Delhi'),       -- dept_id = 4  ← no employees → shows in LEFT/FULL JOIN
+    ('Legal',       'Chennai');     -- dept_id = 5  ← no employees → shows in LEFT/FULL JOIN
+
+
+-- Step 3: Employees — 8 rows with deliberate variety
+--
+--   emp_id | first_name | dept_id | salary  | note
+--   -------+------------+---------+---------+----------------------------------------------
+--      1   | Alice      |    1    |  95000  | Engineering, CEO / top-level (no manager)
+--      2   | Bob        |    1    |  82000  | Engineering, reports to Alice
+--      3   | Carol      |    2    |  78000  | Marketing, reports to Alice
+--      4   | David      |    2    |  67000  | Marketing, reports to Bob
+--      5   | Eve        |    3    |  71000  | HR, reports to Bob
+--      6   | Frank      |    3    |  59000  | HR, reports to Bob; salary < manager → visible in SELF JOIN
+--      7   | Grace      |  NULL   |  54000  | NO department → visible in LEFT JOIN anti-join
+--      8   | Henry      |   99   |  48000  | dept_id=99 doesn't exist → visible in LEFT/FULL JOIN
+--
+-- Note: emp 4 (David, 67k) reports to Bob (82k) — David earns less than his manager.
+--       emp 6 (Frank, 59k) reports to Bob (82k) — Frank earns less too.
+--       We'll set manager relationships via UPDATE after insert (self-referencing FK).
+
+INSERT INTO company.employees (first_name, last_name, email, salary, dept_id, hire_date, status) VALUES
+    ('Alice', 'Adams',   'alice.adams@company.com',   95000, 1,    '2019-03-01', 'active'),   -- emp_id = 1
+    ('Bob',   'Brown',   'bob.brown@company.com',     82000, 1,    '2020-06-15', 'active'),   -- emp_id = 2
+    ('Carol', 'Clark',   'carol.clark@company.com',   78000, 2,    '2021-01-10', 'active'),   -- emp_id = 3
+    ('David', 'Davis',   'david.davis@company.com',   67000, 2,    '2021-09-20', 'active'),   -- emp_id = 4
+    ('Eve',   'Evans',   'eve.evans@company.com',     71000, 3,    '2022-04-05', 'active'),   -- emp_id = 5
+    ('Frank', 'Foster',  'frank.foster@company.com',  59000, 3,    '2022-11-18', 'inactive'), -- emp_id = 6
+    ('Grace', 'Green',   'grace.green@company.com',   54000, NULL, '2023-02-28', 'active'),   -- emp_id = 7  ← NULL dept
+    ('Henry', 'Harris',  'henry.harris@company.com',  48000, 99,   '2023-07-01', 'active');   -- emp_id = 8  ← bad dept_id (no FK since we didn't enforce it here)
+
+
+-- Step 4: Add manager_id column (self-referencing FK for SELF JOIN demos)
 ALTER TABLE company.employees
     ADD COLUMN IF NOT EXISTS manager_id INT REFERENCES company.employees(emp_id);
 
--- Assign managers: employee 1 has no manager (they are at the top).
--- Employees 2, 3, 4, 5 report to employee 1.
-UPDATE company.employees SET manager_id = NULL WHERE emp_id = 1;
-UPDATE company.employees SET manager_id = 1     WHERE emp_id IN (2, 3, 4, 5);
+-- Org chart:
+--   Alice (1)  ← CEO, no manager
+--   ├── Bob   (2)  reports to Alice
+--   │   ├── David (4)  reports to Bob
+--   │   ├── Eve   (5)  reports to Bob
+--   │   └── Frank (6)  reports to Bob  (salary 59k < Bob's 82k → shows in earn-more-than-manager query)
+--   └── Carol (3)  reports to Alice
+--       └── (no direct reports)
+--   Grace (7)  reports to Carol  (no dept — still has a manager)
+--   Henry (8)  reports to Carol
+
+UPDATE company.employees SET manager_id = NULL WHERE emp_id = 1;          -- Alice: CEO
+UPDATE company.employees SET manager_id = 1    WHERE emp_id IN (2, 3);    -- Bob, Carol → Alice
+UPDATE company.employees SET manager_id = 2    WHERE emp_id IN (4, 5, 6); -- David, Eve, Frank → Bob
+UPDATE company.employees SET manager_id = 3    WHERE emp_id IN (7, 8);    -- Grace, Henry → Carol
+
+
+-- Step 5: Projects and assignments (for multi-table JOIN demos)
+CREATE TABLE IF NOT EXISTS company.projects (
+    project_id   SERIAL PRIMARY KEY,
+    project_name VARCHAR(100) NOT NULL,
+    dept_id      INT REFERENCES company.departments(dept_id)
+);
+
+CREATE TABLE IF NOT EXISTS company.employee_projects (
+    emp_id     INT REFERENCES company.employees(emp_id),
+    project_id INT REFERENCES company.projects(project_id),
+    role       VARCHAR(50),
+    PRIMARY KEY (emp_id, project_id)
+);
+
+INSERT INTO company.projects (project_name, dept_id) VALUES
+    ('Data Platform Rebuild', 1),   -- project_id = 1, Engineering
+    ('CRM Migration',         2),   -- project_id = 2, Marketing
+    ('Payroll Upgrade',       3),   -- project_id = 3, HR
+    ('Cloud Infrastructure',  1);   -- project_id = 4, Engineering (2nd Engineering project)
+
+-- Assignments:
+--   Alice  → 2 projects (row multiplier demo — Alice appears twice in INNER JOIN to projects)
+--   Bob    → 2 projects
+--   Carol  → 1 project
+--   David  → 0 projects  ← visible in LEFT JOIN (shows 'No Project')
+--   Eve    → 0 projects  ← visible in LEFT JOIN
+--   Frank  → 1 project
+--   Grace  → 0 projects (no dept + no project)
+--   Henry  → 0 projects
+
+INSERT INTO company.employee_projects (emp_id, project_id, role) VALUES
+    (1, 1, 'Lead Engineer'),       -- Alice on Data Platform
+    (1, 4, 'Technical Advisor'),   -- Alice on Cloud Infra  ← Alice appears TWICE after JOIN
+    (2, 1, 'Developer'),           -- Bob on Data Platform
+    (2, 2, 'Analyst'),             -- Bob on CRM Migration  ← Bob appears TWICE after JOIN
+    (3, 2, 'Project Manager'),     -- Carol on CRM Migration
+    (6, 3, 'HR Analyst');          -- Frank on Payroll Upgrade
+
+
+-- Quick sanity check — run these after setup to confirm data loaded correctly:
+SELECT 'departments' AS tbl, COUNT(*) AS rows FROM company.departments
+UNION ALL
+SELECT 'employees',           COUNT(*)         FROM company.employees
+UNION ALL
+SELECT 'projects',            COUNT(*)         FROM company.projects
+UNION ALL
+SELECT 'employee_projects',   COUNT(*)         FROM company.employee_projects;
+
+-- Expected output:
+--   departments       | 5
+--   employees         | 8
+--   projects          | 4
+--   employee_projects | 6
 
 
 -- ===============================================================
@@ -413,31 +548,10 @@ ORDER BY q.quarter, d.dept_name;
 -- ---------------------------------------------------------------
 
 
--- Create project tables to enable 3-table joins.
-CREATE TABLE IF NOT EXISTS company.projects (
-    project_id   SERIAL PRIMARY KEY,
-    project_name VARCHAR(100) NOT NULL,
-    dept_id      INT REFERENCES company.departments(dept_id)
-);
-
-CREATE TABLE IF NOT EXISTS company.employee_projects (
-    emp_id     INT REFERENCES company.employees(emp_id),
-    project_id INT REFERENCES company.projects(project_id),
-    role       VARCHAR(50),
-    PRIMARY KEY (emp_id, project_id)
-);
-
--- Sample data
-INSERT INTO company.projects (project_name, dept_id) VALUES
-    ('Data Platform',  1),
-    ('CRM Migration',  2),
-    ('Payroll Upgrade', 3);
-
-INSERT INTO company.employee_projects (emp_id, project_id, role) VALUES
-    (1, 1, 'Lead Engineer'),
-    (2, 1, 'Developer'),
-    (2, 2, 'Analyst'),
-    (3, 3, 'Project Manager');
+-- projects and employee_projects were created and loaded in the DATA SETUP block above.
+-- Current data:
+--   projects          → Data Platform Rebuild (Eng), CRM Migration (Mktg), Payroll Upgrade (HR), Cloud Infrastructure (Eng)
+--   employee_projects → Alice (2 projects), Bob (2), Carol (1), Frank (1), David/Eve/Grace/Henry (0 each)
 
 
 -- Three-table INNER JOIN: employee → dept → project.
