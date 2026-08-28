@@ -1,17 +1,18 @@
 -- =============================================================
 -- Day 9 — Data Engineering SQL Interview Problems
--- Medium → Advanced Level
+-- Source: 210 Days SQL Interview Questions (LeetCode-based)
+-- Window Function patterns: Medium → Hard
 -- =============================================================
 -- Standalone: run this file top-to-bottom on any PostgreSQL DB.
 -- All tables and data are created below.
 -- Solutions are in day9_solutions.sql — do NOT open until done.
 --
--- Topics tested per problem:
---   P1 — Deduplication with ROW_NUMBER (CDC / late-arriving data)
---   P2 — Running total + % of group (cumulative revenue analysis)
---   P3 — Gap detection with LAG (churn / SLA breach detection)
---   P4 — Top-N per group + conditional aggregation (product performance)
---   P5 — Date spine gap-fill + month-over-month with LAG (reporting)
+-- Problems selected:
+--   P1 (Day 21) — Rising Temperature         LAG — consecutive row comparison
+--   P2 (Day 32) — Restaurant Growth          7-day rolling average (ROWS BETWEEN)
+--   P3 (Day 34) — Biggest Window Between Visits  LAG gap detection per user
+--   P4 (Day 47) — Continuous Ranges          Gaps & Islands (ROW_NUMBER trick)
+--   P5 (Day 27) — Most Recent Three Orders   Top-N per group (ROW_NUMBER + filter)
 -- =============================================================
 
 
@@ -19,331 +20,318 @@
 -- TABLE SETUP — run this entire block first
 -- =============================================================
 
-DROP SCHEMA IF EXISTS de_interview CASCADE;
-CREATE SCHEMA de_interview;
+DROP SCHEMA IF EXISTS lc CASCADE;
+CREATE SCHEMA lc;
 
 
 -- -------------------------------------------------------
--- Table 1: raw_events
--- Simulates a CDC (Change Data Capture) stream from a source system.
--- The same customer record can appear multiple times with different
--- updated_at timestamps — the latest row is the "true" current state.
+-- Table for P1: Weather
+-- LeetCode #197 — Rising Temperature
+-- One row per day with temperature recorded.
 -- -------------------------------------------------------
-CREATE TABLE de_interview.raw_events (
-    event_id    SERIAL PRIMARY KEY,
-    customer_id INT,
-    name        VARCHAR(100),
-    email       VARCHAR(150),
-    tier        VARCHAR(20),
-    salary      NUMERIC(10,2),
-    updated_at  TIMESTAMP
+CREATE TABLE lc.weather (
+    id           INT PRIMARY KEY,
+    record_date  DATE,
+    temperature  INT
 );
 
-INSERT INTO de_interview.raw_events (customer_id, name, email, tier, salary, updated_at) VALUES
-    -- customer 1: appeared 3 times — latest is 2024-03-10
-    (1, 'Alice',   'alice@old.com',     'Silver', 55000, '2024-01-01 10:00:00'),
-    (1, 'Alice',   'alice@new.com',     'Gold',   65000, '2024-03-10 09:00:00'),
-    (1, 'Alice',   'alice@new.com',     'Silver', 58000, '2024-02-15 14:00:00'),
-    -- customer 2: appeared twice — latest is 2024-02-20
-    (2, 'Bob',     'bob@example.com',   'Bronze', 42000, '2024-01-15 08:00:00'),
-    (2, 'Bob',     'bob@example.com',   'Silver', 50000, '2024-02-20 11:00:00'),
-    -- customer 3: appeared once
-    (3, 'Carol',   'carol@example.com', 'Gold',   72000, '2024-01-20 16:00:00'),
-    -- customer 4: appeared 4 times — salary keeps changing
-    (4, 'David',   'david@example.com', 'Bronze', 30000, '2024-01-05 07:00:00'),
-    (4, 'David',   'david@example.com', 'Silver', 38000, '2024-02-01 10:00:00'),
-    (4, 'David',   'david@example.com', 'Gold',   45000, '2024-03-15 15:00:00'),
-    (4, 'David',   'david@example.com', 'Gold',   48000, '2024-04-02 09:30:00'),
-    -- customer 5: appeared twice with conflicting tier
-    (5, 'Eva',     'eva@example.com',   'Silver', 60000, '2024-02-10 12:00:00'),
-    (5, 'Eva',     'eva@example.com',   'Gold',   60000, '2024-03-01 08:00:00');
+INSERT INTO lc.weather (id, record_date, temperature) VALUES
+    (1, '2015-01-01', 10),
+    (2, '2015-01-02', 25),   -- hotter than yesterday → should appear
+    (3, '2015-01-03', 20),   -- cooler than yesterday → should NOT appear
+    (4, '2015-01-04', 30),   -- hotter than yesterday → should appear
+    (5, '2015-01-06', 15),   -- gap in dates (1/5 missing) → should NOT appear
+    (6, '2015-01-07', 40),   -- hotter than yesterday → should appear
+    (7, '2015-01-08', 40),   -- same temp → should NOT appear
+    (8, '2015-01-09', 35);   -- cooler → should NOT appear
 
 
 -- -------------------------------------------------------
--- Table 2: orders
--- Each row is one order. Used for running total and gap analysis.
+-- Table for P2: Customer (Restaurant Growth)
+-- LeetCode #1321 — Restaurant Growth
+-- Each row is one customer visit with the amount paid.
+-- Multiple visits can happen on the same day.
 -- -------------------------------------------------------
-CREATE TABLE de_interview.orders (
-    order_id    SERIAL PRIMARY KEY,
-    customer_id INT,
-    order_date  DATE,
-    amount      NUMERIC(10,2),
-    status      VARCHAR(20)
+CREATE TABLE lc.customer (
+    customer_id   INT,
+    name          VARCHAR(50),
+    visited_on    DATE,
+    amount        INT
 );
 
-INSERT INTO de_interview.orders (customer_id, order_date, amount, status) VALUES
-    (1, '2024-01-05',  5000.00, 'delivered'),
-    (1, '2024-01-18',  3200.00, 'delivered'),
-    (1, '2024-02-10',  7500.00, 'delivered'),
-    (1, '2024-04-20',  4100.00, 'delivered'),   -- gap > 30 days from previous
-    (1, '2024-06-01',  6200.00, 'delivered'),   -- gap > 30 days
-    (2, '2024-01-10',  8000.00, 'delivered'),
-    (2, '2024-01-28',  2500.00, 'delivered'),
-    (2, '2024-02-14',  4500.00, 'delivered'),
-    (2, '2024-03-22',  9000.00, 'delivered'),
-    (2, '2024-04-28', 11000.00, 'delivered'),
-    (3, '2024-02-01', 12000.00, 'delivered'),
-    (3, '2024-05-05',  3500.00, 'delivered'),   -- gap > 30 days
-    (4, '2024-01-15',  1500.00, 'delivered'),
-    (4, '2024-03-10',  2200.00, 'delivered'),   -- gap > 30 days
-    (4, '2024-03-25',  1800.00, 'delivered'),
-    (5, '2024-02-08',  6500.00, 'delivered'),
-    (5, '2024-02-22',  4300.00, 'delivered'),
-    (5, '2024-03-15',  5100.00, 'delivered'),
-    (5, '2024-05-01',  7200.00, 'delivered');   -- gap > 30 days
+INSERT INTO lc.customer (customer_id, name, visited_on, amount) VALUES
+    (1,  'Jhon',    '2019-01-01', 100),
+    (2,  'Daniel',  '2019-01-02', 110),
+    (3,  'Jade',    '2019-01-03', 120),
+    (4,  'Khaled',  '2019-01-04', 130),
+    (5,  'Winston', '2019-01-05', 110),
+    (6,  'Elvis',   '2019-01-06', 140),
+    (7,  'Anna',    '2019-01-07', 150),
+    (8,  'Maria',   '2019-01-08', 80),
+    (9,  'Jaze',    '2019-01-09', 110),
+    (1,  'Jhon',    '2019-01-10', 130),
+    (3,  'Jade',    '2019-01-10', 150);
 
 
 -- -------------------------------------------------------
--- Table 3: product_sales
--- Daily sales by product and category. Used for top-N and pivot.
+-- Table for P3: UserVisits (Biggest Window Between Visits)
+-- LeetCode #1701 — Biggest Window Between Visits
+-- Each row is one visit by a user on a specific date.
 -- -------------------------------------------------------
-CREATE TABLE de_interview.product_sales (
-    sale_id      SERIAL PRIMARY KEY,
-    sale_date    DATE,
-    category     VARCHAR(50),
-    product_name VARCHAR(100),
-    units_sold   INT,
-    revenue      NUMERIC(10,2)
+CREATE TABLE lc.user_visits (
+    user_id     INT,
+    visit_date  DATE
 );
 
-INSERT INTO de_interview.product_sales (sale_date, category, product_name, units_sold, revenue) VALUES
-    ('2024-01-01', 'Electronics', 'Laptop Pro',    3, 240000),
-    ('2024-01-01', 'Electronics', 'Wireless Mouse',10,  15000),
-    ('2024-01-01', 'Electronics', 'Monitor 4K',    2,  40000),
-    ('2024-01-01', 'Furniture',   'Standing Desk', 4,  88000),
-    ('2024-01-01', 'Furniture',   'Office Chair',  6,  72000),
-    ('2024-01-01', 'Furniture',   'Desk Lamp',     8,  20000),
-    ('2024-01-01', 'Stationery',  'Notebook Pack', 50,  20000),
-    ('2024-01-01', 'Stationery',  'Parker Pen Set',20,   5000),
-    ('2024-02-01', 'Electronics', 'Laptop Pro',    5, 400000),
-    ('2024-02-01', 'Electronics', 'Wireless Mouse',15,  22500),
-    ('2024-02-01', 'Electronics', 'Monitor 4K',    3,  60000),
-    ('2024-02-01', 'Furniture',   'Standing Desk', 2,  44000),
-    ('2024-02-01', 'Furniture',   'Office Chair',  4,  48000),
-    ('2024-02-01', 'Furniture',   'Desk Lamp',     12, 30000),
-    ('2024-02-01', 'Stationery',  'Notebook Pack', 30,  12000),
-    ('2024-02-01', 'Stationery',  'Parker Pen Set',40,  10000),
-    ('2024-03-01', 'Electronics', 'Laptop Pro',    2, 160000),
-    ('2024-03-01', 'Electronics', 'Wireless Mouse',20,  30000),
-    ('2024-03-01', 'Electronics', 'Monitor 4K',    6, 120000),
-    ('2024-03-01', 'Furniture',   'Standing Desk', 5, 110000),
-    ('2024-03-01', 'Furniture',   'Office Chair',  8,  96000),
-    ('2024-03-01', 'Furniture',   'Desk Lamp',     5,  12500),
-    ('2024-03-01', 'Stationery',  'Notebook Pack', 70,  28000),
-    ('2024-03-01', 'Stationery',  'Parker Pen Set',10,   2500);
+INSERT INTO lc.user_visits (user_id, visit_date) VALUES
+    (1, '2020-11-28'),
+    (1, '2020-10-20'),
+    (1, '2020-12-03'),
+    (2, '2020-10-05'),
+    (2, '2020-12-09'),
+    (3, '2020-11-11');
 
 
 -- -------------------------------------------------------
--- Table 4: daily_revenue
--- One row per day. Used for date spine and MoM analysis.
--- Deliberately missing some months (April, July 2024) → gap demo.
+-- Table for P4: logs (Continuous Ranges — Gaps & Islands)
+-- LeetCode #1285 — Find the Start and End Number of Continuous Ranges
+-- The logs table has integer log_id values.
+-- Some IDs are missing — find the start and end of each consecutive range.
 -- -------------------------------------------------------
-CREATE TABLE de_interview.daily_revenue (
-    rev_date DATE PRIMARY KEY,
-    revenue  NUMERIC(10,2)
+CREATE TABLE lc.logs (
+    log_id INT PRIMARY KEY
 );
 
-INSERT INTO de_interview.daily_revenue (rev_date, revenue) VALUES
-    ('2024-01-31', 85000), ('2024-02-29', 72000),
-    ('2024-03-31', 98000),
-    -- April 2024 MISSING intentionally
-    ('2024-05-31', 61000), ('2024-06-30', 74000),
-    -- July 2024 MISSING intentionally
-    ('2024-08-31', 89000), ('2024-09-30', 95000),
-    ('2024-10-31',110000), ('2024-11-30', 92000),
-    ('2024-12-31',130000);
+INSERT INTO lc.logs (log_id) VALUES
+    (1), (2), (3),        -- range 1: 1-3
+    (7), (8), (9), (10),  -- range 2: 7-10
+    (14), (15),           -- range 3: 14-15
+    (20);                 -- range 4: 20-20
+
+
+-- -------------------------------------------------------
+-- Table for P5: Orders + Customers (Most Recent Three Orders)
+-- LeetCode #1341 — The Most Recent Three Orders
+-- Show the most recent 3 orders per customer (by order_date).
+-- If a customer has fewer than 3, show all of them.
+-- -------------------------------------------------------
+CREATE TABLE lc.customers_p5 (
+    customer_id   INT PRIMARY KEY,
+    name          VARCHAR(50),
+    email         VARCHAR(100)
+);
+
+CREATE TABLE lc.orders_p5 (
+    order_id     INT PRIMARY KEY,
+    customer_id  INT REFERENCES lc.customers_p5(customer_id),
+    order_date   DATE,
+    cost         INT
+);
+
+INSERT INTO lc.customers_p5 VALUES
+    (1, 'Winston', 'winston@example.com'),
+    (2, 'Jonathan','jonathan@example.com'),
+    (3, 'Annabelle','annabelle@example.com'),
+    (4, 'Marwan',  'marwan@example.com'),
+    (5, 'Khaled',  'khaled@example.com');
+
+INSERT INTO lc.orders_p5 (order_id, customer_id, order_date, cost) VALUES
+    (1,  2, '2020-07-31', 30),
+    (2,  4, '2020-07-30', 40),
+    (3,  5, '2020-07-31', 50),
+    (4,  1, '2020-07-29', 100),
+    (5,  3, '2020-07-31', 20),
+    (6,  4, '2020-08-01', 20),
+    (7,  2, '2020-08-01', 30),
+    (8,  3, '2020-08-01', 20),
+    (9,  3, '2020-08-02', 80),
+    (10, 2, '2020-08-02', 10),
+    (11, 1, '2020-08-01', 20),
+    (12, 4, '2020-08-03', 40),
+    (13, 1, '2020-08-03', 20),
+    (14, 5, '2020-08-03', 50);
 
 
 -- Sanity check
-SELECT 'raw_events'    AS tbl, COUNT(*) AS rows FROM de_interview.raw_events
-UNION ALL
-SELECT 'orders',       COUNT(*) FROM de_interview.orders
-UNION ALL
-SELECT 'product_sales',COUNT(*) FROM de_interview.product_sales
-UNION ALL
-SELECT 'daily_revenue',COUNT(*) FROM de_interview.daily_revenue;
+SELECT 'weather'      AS tbl, COUNT(*) AS rows FROM lc.weather
+UNION ALL SELECT 'customer',    COUNT(*) FROM lc.customer
+UNION ALL SELECT 'user_visits', COUNT(*) FROM lc.user_visits
+UNION ALL SELECT 'logs',        COUNT(*) FROM lc.logs
+UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 
 
 -- =============================================================
--- PROBLEM 1 — Deduplication (CDC / Late-arriving data)
+-- PROBLEM 1 — Rising Temperature  (Day 21 | LeetCode #197)
+-- Pattern: LAG — consecutive row comparison
 -- =============================================================
--- The raw_events table simulates a CDC stream where the same
--- customer_id can appear multiple times with different updated_at
--- timestamps. Each new row represents an updated state of that customer.
 --
--- Task: Write a query that returns ONE row per customer_id —
--- specifically the row with the LATEST updated_at timestamp.
--- Show: customer_id, name, email, tier, salary, updated_at.
+-- Find the id of all days where the temperature was HIGHER than
+-- the previous day's temperature.
+-- The "previous day" means EXACTLY one calendar day before
+-- (record_date - 1), NOT just the previous row — there can be
+-- gaps in the dates.
 --
--- Expected output (5 rows — one per customer):
+-- Expected output (3 rows):
 --
---   customer_id | name  | email              | tier   | salary   | updated_at
---   ------------+-------+--------------------+--------+----------+---------------------
---             1 | Alice | alice@new.com      | Gold   | 65000.00 | 2024-03-10 09:00:00
---             2 | Bob   | bob@example.com    | Silver | 50000.00 | 2024-02-20 11:00:00
---             3 | Carol | carol@example.com  | Gold   | 72000.00 | 2024-01-20 16:00:00
---             4 | David | david@example.com  | Gold   | 48000.00 | 2024-04-02 09:30:00
---             5 | Eva   | eva@example.com    | Gold   | 60000.00 | 2024-03-01 08:00:00
+--   id
+--   ---
+--    2     (25 > 10 on consecutive day)
+--    4     (30 > 20 on consecutive day)
+--    6     (40 > 15 on consecutive day)
 --
--- Hint: Use ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY updated_at DESC)
---       in a CTE, then filter WHERE rn = 1.
--- =============================================================
-
--- YOUR ANSWER:
-
-
--- =============================================================
--- PROBLEM 2 — Running Total + Cumulative % of Group
--- =============================================================
--- Using the orders table, write a query that shows for each order:
---   - customer_id
---   - order_date
---   - amount
---   - customer_running_total  : cumulative sum of amount for that customer,
---                               ordered by order_date
---   - customer_total          : total amount spent by that customer (all orders)
---   - pct_of_customer_total   : customer_running_total / customer_total * 100,
---                               rounded to 2 decimal places
+-- Note: id=5 (2015-01-06, 15°) does NOT appear because
+--       2015-01-05 is missing — not a consecutive day.
+-- Note: id=7 (40°) does NOT appear — same temp as previous day.
 --
--- This shows at what point each customer hit what % of their total spend.
---
--- Expected output (19 rows, ordered by customer_id, order_date):
---
---   customer_id | order_date | amount   | customer_running_total | customer_total | pct_of_customer_total
---   ------------+------------+----------+------------------------+----------------+----------------------
---             1 | 2024-01-05 |  5000.00 |               5000.00 |       26000.00 |                 19.23
---             1 | 2024-01-18 |  3200.00 |               8200.00 |       26000.00 |                 31.54
---             1 | 2024-02-10 |  7500.00 |              15700.00 |       26000.00 |                 60.38
---             ...
---
--- Hint: Use SUM(amount) OVER (PARTITION BY customer_id ORDER BY order_date)
---       for running total, and SUM(amount) OVER (PARTITION BY customer_id)
---       (no ORDER BY) for the full customer total.
+-- Hint: Use LAG(temperature) OVER (ORDER BY record_date) for previous temp.
+--       Use LAG(record_date) OVER (ORDER BY record_date) for previous date.
+--       Filter WHERE temperature > prev_temp AND record_date = prev_date + 1.
 -- =============================================================
 
 -- YOUR ANSWER:
 
 
 -- =============================================================
--- PROBLEM 3 — Gap Detection (Churn Signal)
+-- PROBLEM 2 — Restaurant Growth  (Day 32 | LeetCode #1321)
+-- Pattern: 7-day rolling window (ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
 -- =============================================================
--- A data engineering team wants to flag orders where a customer
--- went more than 30 days without placing an order. These represent
--- potential churn events or SLA breach windows.
 --
--- Task: Write a query that shows, for each order, the gap in days
--- since that customer's PREVIOUS order. Flag orders where the gap
--- is more than 30 days as a churn signal.
+-- The restaurant wants a 7-day moving average of daily revenue
+-- to smooth out weekend spikes. First aggregate daily totals
+-- (multiple customers can visit the same day), then compute the
+-- 7-day rolling average.
 --
--- Show: customer_id, order_date, amount, prev_order_date,
---       gap_days, is_churn_signal ('Yes' if gap > 30, 'No' otherwise,
---       NULL/first order shows 'First Order').
+-- Return: visited_on, amount (7-day rolling sum), average_amount
+--         (7-day rolling average, rounded to 2 decimal places).
+-- Only return dates where at least 7 days of history exist
+-- (i.e., the first 6 dates should be excluded from the output).
 --
--- Expected output (19 rows):
+-- Expected output:
 --
---   customer_id | order_date | amount    | prev_order_date | gap_days | is_churn_signal
---   ------------+------------+-----------+-----------------+----------+----------------
---             1 | 2024-01-05 |  5000.00  | NULL            | NULL     | First Order
---             1 | 2024-01-18 |  3200.00  | 2024-01-05      |    13    | No
---             1 | 2024-02-10 |  7500.00  | 2024-01-18      |    23    | No
---             1 | 2024-04-20 |  4100.00  | 2024-02-10      |    70    | Yes
---             1 | 2024-06-01 |  6200.00  | 2024-04-20      |    42    | Yes
---             ...
+--   visited_on  | amount | average_amount
+--   ------------+--------+---------------
+--   2019-01-07  |  860   |  122.86
+--   2019-01-08  |  840   |  120.00
+--   2019-01-09  |  840   |  120.00
+--   2019-01-10  |  1000  |  142.86
 --
--- Hint: Use LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)
---       Then subtract dates and apply CASE.
+-- Hint:
+--   Step 1 — aggregate to daily totals: SUM(amount) GROUP BY visited_on
+--   Step 2 — apply SUM + AVG with ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+--   Step 3 — only include rows where ROW_NUMBER() >= 7
 -- =============================================================
 
 -- YOUR ANSWER:
 
 
 -- =============================================================
--- PROBLEM 4 — Top 2 Products per Category + Conditional Aggregation
+-- PROBLEM 3 — Biggest Window Between Visits  (Day 34 | LeetCode #1701)
+-- Pattern: LAG gap detection — max gap per user
 -- =============================================================
--- Using product_sales, answer two things in one query block:
 --
--- Part A: For each category, show the TOP 2 products by total revenue
---         across all months. Show: category, product_name, total_revenue,
---         total_units, rank_in_category.
+-- For each user, find the LARGEST number of days between any two
+-- consecutive visits. Also count the gap from the last visit to
+-- '2021-01-01' (treat this as the "reference date" — the day after
+-- the observation window ends).
 --
--- Part B: For each category, show a monthly revenue pivot with these
---         columns: category, jan_revenue, feb_revenue, mar_revenue,
---         total_revenue. Use conditional aggregation (SUM + CASE or FILTER).
+-- Return: user_id, biggest_window (maximum gap in days for that user).
+-- Sort by user_id.
 --
--- Part A Expected output (6 rows — 2 per category):
+-- Expected output:
 --
---   category    | product_name    | total_revenue | total_units | rank_in_category
---   ------------+-----------------+---------------+-------------+-----------------
---   Electronics | Laptop Pro      |    800000.00  |     10      |        1
---   Electronics | Monitor 4K      |    220000.00  |     11      |        2
---   Furniture   | Standing Desk   |    242000.00  |     11      |        1
---   Furniture   | Office Chair    |    216000.00  |     18      |        2
---   Stationery  | Notebook Pack   |     60000.00  |    150      |        1
---   Stationery  | Parker Pen Set  |     17500.00  |     70      |        2
+--   user_id | biggest_window
+--   --------+---------------
+--         1 |     36          (2020-12-03 → 2021-01-01 = 29 days,
+--                              2020-10-20 → 2020-11-28 = 39 days, etc.)
+--         2 |     65          (2020-10-05 → 2020-12-09 = 65 days)
+--         3 |     51          (2020-11-11 → 2021-01-01 = 51 days)
 --
--- Part B Expected output (3 rows — one per category):
---
---   category    | jan_revenue | feb_revenue | mar_revenue | total_revenue
---   ------------+-------------+-------------+-------------+--------------
---   Electronics |    295000   |    482500   |    310000   |   1087500
---   Furniture   |    180000   |    122000   |    218500   |    520500
---   Stationery  |     25000   |     22000   |     30500   |     77500
---
--- Hint Part A: Aggregate by category + product first in a CTE,
---             then apply RANK() OVER (PARTITION BY category ORDER BY total_revenue DESC).
---             Filter WHERE rank <= 2 in the outer query.
---
--- Hint Part B: SUM(revenue) FILTER (WHERE EXTRACT(MONTH FROM sale_date) = 1)
---              or SUM(CASE WHEN EXTRACT(MONTH FROM sale_date) = 1 THEN revenue ELSE 0 END)
+-- Hint:
+--   Use LAG(visit_date) OVER (PARTITION BY user_id ORDER BY visit_date)
+--   to get the previous visit date.
+--   For the last visit → gap = '2021-01-01' - visit_date.
+--   Use LEAD to find if there's a next visit; if NULL, gap = ref_date - visit_date.
+--   Then MAX(gap) per user.
 -- =============================================================
 
--- Part A — YOUR ANSWER:
-
-
--- Part B — YOUR ANSWER:
+-- YOUR ANSWER:
 
 
 -- =============================================================
--- PROBLEM 5 — Date Spine + Month-over-Month Revenue Change
+-- PROBLEM 4 — Continuous Ranges (Gaps & Islands)  (Day 47 | LeetCode #1285)
+-- Pattern: ROW_NUMBER subtraction trick — the classic gaps & islands
 -- =============================================================
--- The daily_revenue table has monthly summary rows but is MISSING
--- April 2024 and July 2024 entirely.
 --
--- Task: Write a query that:
---   1. Generates a complete date spine for all 12 months of 2024
---      using generate_series.
---   2. LEFT JOINs daily_revenue onto the spine so missing months
---      show revenue = 0.
---   3. Uses LAG to compute the previous month's revenue.
---   4. Computes month-over-month change and percentage change.
---   5. Labels each month's trend: 'Growth', 'Decline', 'Flat', or 'No Data'
---      (No Data = current month has 0 revenue).
+-- Find the start and end of each consecutive range of log_id values.
+-- Consecutive means no gaps — 1,2,3 is one range; 1,2,5 gives ranges 1-2 and 5-5.
 --
--- Show: month_label (e.g. 'Jan-2024'), revenue, prev_revenue,
---       mom_change, mom_pct_change (rounded to 2 dp), trend.
+-- Return: start_id, end_id for each continuous range.
+-- Sort by start_id.
 --
--- Expected output (12 rows):
+-- Expected output (4 rows):
 --
---   month_label | revenue   | prev_revenue | mom_change | mom_pct_change | trend
---   ------------+-----------+--------------+------------+----------------+-------
---   Jan-2024    |  85000.00 | NULL         | NULL       | NULL           | Growth
---   Feb-2024    |  72000.00 | 85000.00     | -13000.00  | -15.29         | Decline
---   Mar-2024    |  98000.00 | 72000.00     |  26000.00  |  36.11         | Growth
---   Apr-2024    |      0.00 | 98000.00     | -98000.00  |-100.00         | No Data
---   May-2024    |  61000.00 |      0.00    |  61000.00  | NULL           | Growth
---   Jun-2024    |  74000.00 | 61000.00     |  13000.00  |  21.31         | Growth
---   Jul-2024    |      0.00 | 74000.00     | -74000.00  |-100.00         | No Data
---   Aug-2024    |  89000.00 |      0.00    |  89000.00  | NULL           | Growth
---   Sep-2024    |  95000.00 | 89000.00     |   6000.00  |   6.74         | Growth
---   Oct-2024    | 110000.00 | 95000.00     |  15000.00  |  15.79         | Growth
---   Nov-2024    |  92000.00 |110000.00     | -18000.00  | -16.36         | Decline
---   Dec-2024    | 130000.00 | 92000.00     |  38000.00  |  41.30         | Growth
+--   start_id | end_id
+--   ---------+-------
+--          1 |      3
+--          7 |     10
+--         14 |     15
+--         20 |     20
 --
--- Hint: generate_series('2024-01-01'::DATE, '2024-12-01'::DATE, '1 month')
---       LEFT JOIN daily_revenue on DATE_TRUNC('month', rev_date)::DATE = spine.month
---       COALESCE(revenue, 0) for missing months
---       LAG on the spine-joined revenue for prev_revenue
---       NULLIF(prev_revenue, 0) in denominator to avoid division by zero
+-- Hint — the Gaps & Islands trick:
+--   For consecutive integers, (log_id - ROW_NUMBER() OVER (ORDER BY log_id))
+--   gives the SAME value for all IDs in the same consecutive group.
+--   Why? Because as log_id increases by 1, row_number also increases by 1 → difference is constant.
+--   A gap breaks this: if log_id jumps by 2, but row_number goes up by 1 → difference increases.
+--
+--   Example:
+--     log_id | row_num | log_id - row_num (= island key)
+--      1     |   1     |   0
+--      2     |   2     |   0      ← same island
+--      3     |   3     |   0      ← same island
+--      7     |   4     |   3      ← new island starts
+--      8     |   5     |   3
+--
+--   Then GROUP BY (log_id - row_num) and take MIN as start_id, MAX as end_id.
+-- =============================================================
+
+-- YOUR ANSWER:
+
+
+-- =============================================================
+-- PROBLEM 5 — Most Recent Three Orders  (Day 27 | LeetCode #1341)
+-- Pattern: ROW_NUMBER per partition → Top-N per group filter
+-- =============================================================
+--
+-- For each customer, return their most recent 3 orders.
+-- If a customer has fewer than 3 orders, return all of them.
+-- Show: customer_name, customer_email, order_id, order_date, cost.
+-- Sort by customer_name ascending, then order_date descending.
+-- If two orders share the same date, sort by order_id ascending.
+--
+-- Expected output (12 rows — some customers have < 3 orders):
+--
+--   customer_name | customer_email           | order_id | order_date  | cost
+--   --------------+--------------------------+----------+-------------+------
+--   Annabelle     | annabelle@example.com    |       9  | 2020-08-02  |  80
+--   Annabelle     | annabelle@example.com    |       5  | 2020-07-31  |  20
+--   Annabelle     | annabelle@example.com    |       8  | 2020-08-01  |  20
+--   Jonathan      | jonathan@example.com     |      10  | 2020-08-02  |  10
+--   Jonathan      | jonathan@example.com     |       7  | 2020-08-01  |  30
+--   Jonathan      | jonathan@example.com     |       1  | 2020-07-31  |  30
+--   Khaled        | khaled@example.com       |      14  | 2020-08-03  |  50
+--   Khaled        | khaled@example.com       |       3  | 2020-07-31  |  50
+--   Marwan        | marwan@example.com       |      12  | 2020-08-03  |  40
+--   Marwan        | marwan@example.com       |       6  | 2020-08-01  |  20
+--   Marwan        | marwan@example.com       |       2  | 2020-07-30  |  40
+--   Winston       | winston@example.com      |      13  | 2020-08-03  |  20
+--   Winston       | winston@example.com      |      11  | 2020-08-01  |  20
+--   Winston       | winston@example.com      |       4  | 2020-07-29  | 100
+--
+-- Hint:
+--   ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id ASC)
+--   gives a rank per customer — 1 = most recent order.
+--   Wrap in a CTE, then filter WHERE rn <= 3.
+--   JOIN back to customers for name and email.
 -- =============================================================
 
 -- YOUR ANSWER:
