@@ -183,10 +183,6 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 --       2015-01-05 is missing — not a consecutive day.
 -- Note: id=7 (40°) does NOT appear — same temp as previous day.
 --
--- Hint: Use LAG(temperature) OVER (ORDER BY record_date) for previous temp.
---       Use LAG(record_date) OVER (ORDER BY record_date) for previous date.
---       Filter WHERE temperature > prev_temp AND record_date = prev_date + 1.
--- =============================================================
 
 -- YOUR ANSWER:
 
@@ -215,10 +211,7 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 --   2019-01-09  |  840   |  120.00
 --   2019-01-10  |  1000  |  142.86
 --
--- Hint:
---   Step 1 — aggregate to daily totals: SUM(amount) GROUP BY visited_on
---   Step 2 — apply SUM + AVG with ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
---   Step 3 — only include rows where ROW_NUMBER() >= 7
+
 -- =============================================================
 
 -- YOUR ANSWER:
@@ -246,12 +239,7 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 --         2 |     65          (2020-10-05 → 2020-12-09 = 65 days)
 --         3 |     51          (2020-11-11 → 2021-01-01 = 51 days)
 --
--- Hint:
---   Use LAG(visit_date) OVER (PARTITION BY user_id ORDER BY visit_date)
---   to get the previous visit date.
---   For the last visit → gap = '2021-01-01' - visit_date.
---   Use LEAD to find if there's a next visit; if NULL, gap = ref_date - visit_date.
---   Then MAX(gap) per user.
+
 -- =============================================================
 
 -- YOUR ANSWER:
@@ -277,21 +265,6 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 --         14 |     15
 --         20 |     20
 --
--- Hint — the Gaps & Islands trick:
---   For consecutive integers, (log_id - ROW_NUMBER() OVER (ORDER BY log_id))
---   gives the SAME value for all IDs in the same consecutive group.
---   Why? Because as log_id increases by 1, row_number also increases by 1 → difference is constant.
---   A gap breaks this: if log_id jumps by 2, but row_number goes up by 1 → difference increases.
---
---   Example:
---     log_id | row_num | log_id - row_num (= island key)
---      1     |   1     |   0
---      2     |   2     |   0      ← same island
---      3     |   3     |   0      ← same island
---      7     |   4     |   3      ← new island starts
---      8     |   5     |   3
---
---   Then GROUP BY (log_id - row_num) and take MIN as start_id, MAX as end_id.
 -- =============================================================
 
 -- YOUR ANSWER:
@@ -327,11 +300,7 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 --   Winston       | winston@example.com      |      11  | 2020-08-01  |  20
 --   Winston       | winston@example.com      |       4  | 2020-07-29  | 100
 --
--- Hint:
---   ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id ASC)
---   gives a rank per customer — 1 = most recent order.
---   Wrap in a CTE, then filter WHERE rn <= 3.
---   JOIN back to customers for name and email.
+
 -- =============================================================
 
 -- YOUR ANSWER:
