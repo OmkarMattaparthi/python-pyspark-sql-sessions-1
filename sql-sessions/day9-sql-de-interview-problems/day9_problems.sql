@@ -1,18 +1,18 @@
 -- =============================================================
 -- Day 9 — Data Engineering SQL Interview Problems
 -- Source: 210 Days SQL Interview Questions (LeetCode-based)
--- Window Function patterns: Medium → Hard
+-- Window Function patterns: Medium level
 -- =============================================================
 -- Standalone: run this file top-to-bottom on any PostgreSQL DB.
 -- All tables and data are created below.
 -- Solutions are in day9_solutions.sql — do NOT open until done.
 --
 -- Problems selected:
---   P1 (Day 21) — Rising Temperature         LAG — consecutive row comparison
---   P2 (Day 32) — Restaurant Growth          7-day rolling average (ROWS BETWEEN)
---   P3 (Day 34) — Biggest Window Between Visits  LAG gap detection per user
---   P4 (Day 47) — Continuous Ranges          Gaps & Islands (ROW_NUMBER trick)
---   P5 (Day 27) — Most Recent Three Orders   Top-N per group (ROW_NUMBER + filter)
+--   P1 (Day 21) — Rising Temperature              LAG — consecutive row comparison
+--   P2 (Day 22) — Game Play Analysis III          Running total SUM OVER ORDER BY
+--   P3 (Day 25) — Running Total for Genders       SUM per partition (PARTITION BY)
+--   P4 (Day 32) — Restaurant Growth               7-day rolling average (ROWS BETWEEN)
+--   P5 (Day 27) — Most Recent Three Orders        Top-N per group (ROW_NUMBER + filter)
 -- =============================================================
 
 
@@ -37,17 +37,61 @@ CREATE TABLE lc.weather (
 
 INSERT INTO lc.weather (id, record_date, temperature) VALUES
     (1, '2015-01-01', 10),
-    (2, '2015-01-02', 25),   -- hotter than yesterday → should appear
-    (3, '2015-01-03', 20),   -- cooler than yesterday → should NOT appear
-    (4, '2015-01-04', 30),   -- hotter than yesterday → should appear
-    (5, '2015-01-06', 15),   -- gap in dates (1/5 missing) → should NOT appear
-    (6, '2015-01-07', 40),   -- hotter than yesterday → should appear
-    (7, '2015-01-08', 40),   -- same temp → should NOT appear
-    (8, '2015-01-09', 35);   -- cooler → should NOT appear
+    (2, '2015-01-02', 25),
+    (3, '2015-01-03', 20),
+    (4, '2015-01-04', 30),
+    (5, '2015-01-06', 15),
+    (6, '2015-01-07', 40),
+    (7, '2015-01-08', 40),
+    (8, '2015-01-09', 35);
 
 
 -- -------------------------------------------------------
--- Table for P2: Customer (Restaurant Growth)
+-- Table for P2: Activity (Game Play Analysis III)
+-- LeetCode #534 — Game Play Analysis III
+-- Each row is one session played by a player on a given date.
+-- games_played is how many games they played that session.
+-- -------------------------------------------------------
+CREATE TABLE lc.activity (
+    player_id    INT,
+    device_id    INT,
+    event_date   DATE,
+    games_played INT
+);
+
+INSERT INTO lc.activity (player_id, device_id, event_date, games_played) VALUES
+    (1, 2, '2016-03-01', 5),
+    (1, 2, '2016-05-02', 6),
+    (1, 3, '2017-06-25', 1),
+    (3, 1, '2016-03-02', 0),
+    (3, 4, '2018-07-03', 5);
+
+
+-- -------------------------------------------------------
+-- Table for P3: Scores (Running Total for Different Genders)
+-- LeetCode #1308 — Running Total for Different Genders
+-- Each row is one contest result: player, gender, day, score.
+-- -------------------------------------------------------
+CREATE TABLE lc.scores (
+    player_name  VARCHAR(50),
+    gender       CHAR(1),
+    day          DATE,
+    score_points INT
+);
+
+INSERT INTO lc.scores (player_name, gender, day, score_points) VALUES
+    ('Aron',  'F', '2020-01-01', 17),
+    ('Alice', 'F', '2020-01-07', 23),
+    ('Bajrang','M', '2020-01-07', 7),
+    ('Khali', 'M', '2020-01-06', 11),
+    ('Slaman','M', '2020-01-01', 13),
+    ('Joe',   'M', '2020-01-02', 12),
+    ('Meredith','F','2020-01-06', 17),
+    ('Irina', 'F', '2020-01-05', 13);
+
+
+-- -------------------------------------------------------
+-- Table for P4: Customer (Restaurant Growth)
 -- LeetCode #1321 — Restaurant Growth
 -- Each row is one customer visit with the amount paid.
 -- Multiple visits can happen on the same day.
@@ -74,42 +118,6 @@ INSERT INTO lc.customer (customer_id, name, visited_on, amount) VALUES
 
 
 -- -------------------------------------------------------
--- Table for P3: UserVisits (Biggest Window Between Visits)
--- LeetCode #1701 — Biggest Window Between Visits
--- Each row is one visit by a user on a specific date.
--- -------------------------------------------------------
-CREATE TABLE lc.user_visits (
-    user_id     INT,
-    visit_date  DATE
-);
-
-INSERT INTO lc.user_visits (user_id, visit_date) VALUES
-    (1, '2020-11-28'),
-    (1, '2020-10-20'),
-    (1, '2020-12-03'),
-    (2, '2020-10-05'),
-    (2, '2020-12-09'),
-    (3, '2020-11-11');
-
-
--- -------------------------------------------------------
--- Table for P4: logs (Continuous Ranges — Gaps & Islands)
--- LeetCode #1285 — Find the Start and End Number of Continuous Ranges
--- The logs table has integer log_id values.
--- Some IDs are missing — find the start and end of each consecutive range.
--- -------------------------------------------------------
-CREATE TABLE lc.logs (
-    log_id INT PRIMARY KEY
-);
-
-INSERT INTO lc.logs (log_id) VALUES
-    (1), (2), (3),        -- range 1: 1-3
-    (7), (8), (9), (10),  -- range 2: 7-10
-    (14), (15),           -- range 3: 14-15
-    (20);                 -- range 4: 20-20
-
-
--- -------------------------------------------------------
 -- Table for P5: Orders + Customers (Most Recent Three Orders)
 -- LeetCode #1341 — The Most Recent Three Orders
 -- Show the most recent 3 orders per customer (by order_date).
@@ -129,11 +137,11 @@ CREATE TABLE lc.orders_p5 (
 );
 
 INSERT INTO lc.customers_p5 VALUES
-    (1, 'Winston', 'winston@example.com'),
-    (2, 'Jonathan','jonathan@example.com'),
+    (1, 'Winston',  'winston@example.com'),
+    (2, 'Jonathan', 'jonathan@example.com'),
     (3, 'Annabelle','annabelle@example.com'),
-    (4, 'Marwan',  'marwan@example.com'),
-    (5, 'Khaled',  'khaled@example.com');
+    (4, 'Marwan',   'marwan@example.com'),
+    (5, 'Khaled',   'khaled@example.com');
 
 INSERT INTO lc.orders_p5 (order_id, customer_id, order_date, cost) VALUES
     (1,  2, '2020-07-31', 30),
@@ -154,9 +162,9 @@ INSERT INTO lc.orders_p5 (order_id, customer_id, order_date, cost) VALUES
 
 -- Sanity check
 SELECT 'weather'      AS tbl, COUNT(*) AS rows FROM lc.weather
+UNION ALL SELECT 'activity',    COUNT(*) FROM lc.activity
+UNION ALL SELECT 'scores',      COUNT(*) FROM lc.scores
 UNION ALL SELECT 'customer',    COUNT(*) FROM lc.customer
-UNION ALL SELECT 'user_visits', COUNT(*) FROM lc.user_visits
-UNION ALL SELECT 'logs',        COUNT(*) FROM lc.logs
 UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 
 
@@ -188,7 +196,60 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 
 
 -- =============================================================
--- PROBLEM 2 — Restaurant Growth  (Day 32 | LeetCode #1321)
+-- PROBLEM 2 — Game Play Analysis III  (Day 22 | LeetCode #534)
+-- Pattern: Running total — SUM OVER (PARTITION BY ORDER BY)
+-- =============================================================
+--
+-- For each player, report the cumulative (running) total of
+-- games played up to and including each session date.
+--
+-- Return: player_id, event_date, games_played_so_far
+-- Sort by player_id, event_date.
+--
+-- Expected output:
+--
+--   player_id | event_date  | games_played_so_far
+--   ----------+-------------+--------------------
+--           1 | 2016-03-01  |   5
+--           1 | 2016-05-02  |  11
+--           1 | 2017-06-25  |  12
+--           3 | 2016-03-02  |   0
+--           3 | 2018-07-03  |   5
+--
+
+-- YOUR ANSWER:
+
+
+-- =============================================================
+-- PROBLEM 3 — Running Total for Different Genders  (Day 25 | LeetCode #1308)
+-- Pattern: SUM per partition — running total resets per gender
+-- =============================================================
+--
+-- For each gender, compute the running total of score_points
+-- ordered by day. The running total resets for each gender group.
+--
+-- Return: gender, day, total (cumulative score up to that day for that gender).
+-- Sort by gender, day.
+--
+-- Expected output:
+--
+--   gender | day        | total
+--   -------+------------+-------
+--   F      | 2020-01-01 |   17
+--   F      | 2020-01-05 |   30
+--   F      | 2020-01-06 |   47
+--   F      | 2020-01-07 |   70
+--   M      | 2020-01-01 |   13
+--   M      | 2020-01-02 |   25
+--   M      | 2020-01-06 |   36
+--   M      | 2020-01-07 |   43
+--
+
+-- YOUR ANSWER:
+
+
+-- =============================================================
+-- PROBLEM 4 — Restaurant Growth  (Day 32 | LeetCode #1321)
 -- Pattern: 7-day rolling window (ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
 -- =============================================================
 --
@@ -212,61 +273,6 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 --   2019-01-10  |  1000  |  142.86
 --
 
--- =============================================================
-
--- YOUR ANSWER:
-
-
--- =============================================================
--- PROBLEM 3 — Biggest Window Between Visits  (Day 34 | LeetCode #1701)
--- Pattern: LAG gap detection — max gap per user
--- =============================================================
---
--- For each user, find the LARGEST number of days between any two
--- consecutive visits. Also count the gap from the last visit to
--- '2021-01-01' (treat this as the "reference date" — the day after
--- the observation window ends).
---
--- Return: user_id, biggest_window (maximum gap in days for that user).
--- Sort by user_id.
---
--- Expected output:
---
---   user_id | biggest_window
---   --------+---------------
---         1 |     36          (2020-12-03 → 2021-01-01 = 29 days,
---                              2020-10-20 → 2020-11-28 = 39 days, etc.)
---         2 |     65          (2020-10-05 → 2020-12-09 = 65 days)
---         3 |     51          (2020-11-11 → 2021-01-01 = 51 days)
---
-
--- =============================================================
-
--- YOUR ANSWER:
-
-
--- =============================================================
--- PROBLEM 4 — Continuous Ranges (Gaps & Islands)  (Day 47 | LeetCode #1285)
--- Pattern: ROW_NUMBER subtraction trick — the classic gaps & islands
--- =============================================================
---
--- Find the start and end of each consecutive range of log_id values.
--- Consecutive means no gaps — 1,2,3 is one range; 1,2,5 gives ranges 1-2 and 5-5.
---
--- Return: start_id, end_id for each continuous range.
--- Sort by start_id.
---
--- Expected output (4 rows):
---
---   start_id | end_id
---   ---------+-------
---          1 |      3
---          7 |     10
---         14 |     15
---         20 |     20
---
--- =============================================================
-
 -- YOUR ANSWER:
 
 
@@ -281,13 +287,13 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 -- Sort by customer_name ascending, then order_date descending.
 -- If two orders share the same date, sort by order_id ascending.
 --
--- Expected output (12 rows — some customers have < 3 orders):
+-- Expected output (12 rows — Khaled has only 2 orders):
 --
 --   customer_name | customer_email           | order_id | order_date  | cost
 --   --------------+--------------------------+----------+-------------+------
 --   Annabelle     | annabelle@example.com    |       9  | 2020-08-02  |  80
---   Annabelle     | annabelle@example.com    |       5  | 2020-07-31  |  20
 --   Annabelle     | annabelle@example.com    |       8  | 2020-08-01  |  20
+--   Annabelle     | annabelle@example.com    |       5  | 2020-07-31  |  20
 --   Jonathan      | jonathan@example.com     |      10  | 2020-08-02  |  10
 --   Jonathan      | jonathan@example.com     |       7  | 2020-08-01  |  30
 --   Jonathan      | jonathan@example.com     |       1  | 2020-07-31  |  30
@@ -300,7 +306,5 @@ UNION ALL SELECT 'orders_p5',   COUNT(*) FROM lc.orders_p5;
 --   Winston       | winston@example.com      |      11  | 2020-08-01  |  20
 --   Winston       | winston@example.com      |       4  | 2020-07-29  | 100
 --
-
--- =============================================================
 
 -- YOUR ANSWER:
