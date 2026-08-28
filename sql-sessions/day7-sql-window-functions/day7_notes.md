@@ -1,17 +1,13 @@
-# Day 7 Notes — SQL Window Functions
+# Day 7 Notes — Window Functions Part 1
 
-## Topics Covered
+> **Part 2 continues in `day8_notes.md`**: LAG, LEAD, running totals, ROWS BETWEEN, FIRST_VALUE, LAST_VALUE, WINDOW clause.
+
+## Topics Covered (Day 7)
 1. What is a window function and how it differs from GROUP BY
 2. The OVER() clause — syntax and structure
 3. PARTITION BY — defining the window group
 4. ORDER BY inside OVER() — defining row order within the window
 5. Ranking functions — ROW_NUMBER, RANK, DENSE_RANK, NTILE
-6. Offset functions — LAG, LEAD
-7. Aggregate window functions — SUM, AVG, COUNT, MIN, MAX over a window
-8. Running totals and cumulative sums
-9. Window frames — ROWS BETWEEN / RANGE BETWEEN
-10. Named windows — WINDOW clause
-11. Common mistakes and when to use CTE with window functions
 
 ---
 
