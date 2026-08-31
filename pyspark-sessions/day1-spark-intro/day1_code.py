@@ -1,12 +1,16 @@
 """
-Day 1 — First PySpark Script
+Day 1 - First PySpark Script
 Topics: SparkSession, createDataFrame, read CSV, show, printSchema,
         select, filter, withColumn, groupBy, count, stop
 """
 
 import os
+import sys
 
-# Must be set BEFORE importing pyspark — Spark reads these at import time.
+# Force UTF-8 output on Windows so print() never crashes on special chars
+sys.stdout.reconfigure(encoding='utf-8')
+
+# Must be set BEFORE importing pyspark - Spark reads these at import time.
 # JAVA_HOME points to DBeaver's bundled JRE (Java 11) on this machine.
 os.environ['JAVA_HOME']             = 'C:/Program Files/DBeaver/jre'
 os.environ['PYSPARK_PYTHON']        = r'C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe'
@@ -19,9 +23,9 @@ from pyspark.sql.functions import col, upper, lit, avg, count
 # 1. Create a SparkSession
 # =============================================================
 # SparkSession is the single entry point to all Spark functionality.
-# .master("local[*]") → run locally using ALL available CPU cores.
+# .master("local[*]") - run locally using ALL available CPU cores.
 # Use local[2] to use exactly 2 cores, local[1] for single-threaded.
-# .getOrCreate()     → returns existing session if one already exists.
+# .getOrCreate()      - returns existing session if one already exists.
 
 spark = SparkSession.builder \
     .appName("Day1 - PySpark Intro") \
@@ -65,10 +69,10 @@ df.show()
 
 
 # =============================================================
-# 3. printSchema — understand column names and data types
+# 3. printSchema - understand column names and data types
 # =============================================================
 # Always run printSchema() first when working with a new dataset.
-# Shows the tree of column name → data type → nullable flag.
+# Shows the tree of column name -> data type -> nullable flag.
 
 print("--- Schema ---")
 df.printSchema()
@@ -78,13 +82,13 @@ df.printSchema()
 # 4. Basic inspection
 # =============================================================
 
-print(f"Row count  : {df.count()}")
+print(f"Row count   : {df.count()}")
 print(f"Column count: {len(df.columns)}")
-print(f"Columns    : {df.columns}")
+print(f"Columns     : {df.columns}")
 
 
 # =============================================================
-# 5. select — choose specific columns
+# 5. select - choose specific columns
 # =============================================================
 # Spark does NOT modify the original df (DataFrames are immutable).
 # Every transformation returns a NEW DataFrame.
@@ -92,13 +96,13 @@ print(f"Columns    : {df.columns}")
 print("\n--- select: name and salary only ---")
 df.select("name", "salary").show()
 
-# You can also use col() for expressions:
+# You can also use col() for expressions
 print("--- select using col() ---")
-df.select(col("name"), col("salary") * 1.1).show()
+df.select(col("name"), (col("salary") * 1.1).alias("salary_x1.1")).show()
 
 
 # =============================================================
-# 6. filter / where — row filtering (equivalent, pick either)
+# 6. filter / where - row filtering (both are equivalent)
 # =============================================================
 
 print("--- filter: salary > 65000 ---")
@@ -107,18 +111,18 @@ df.filter(col("salary") > 65000).show()
 print("--- filter: Engineering department ---")
 df.filter(col("department") == "Engineering").show()
 
-# Combining conditions: use & (AND) | (OR) instead of and/or
+# Combining conditions: use & (AND) | (OR) - not Python 'and'/'or'
 print("--- filter: Engineering AND salary > 80000 ---")
 df.filter((col("department") == "Engineering") & (col("salary") > 80000)).show()
 
 
 # =============================================================
-# 7. withColumn — add or replace a column
+# 7. withColumn - add or replace a column
 # =============================================================
-# First argument: column name (new or existing).
+# First argument : column name (new or existing).
 # Second argument: the expression for the column's value.
 
-print("--- withColumn: add salary_usd (salary / 83 as USD approximation) ---")
+print("--- withColumn: add salary_usd (salary / 83) ---")
 df_with_usd = df.withColumn("salary_usd", (col("salary") / 83).cast("int"))
 df_with_usd.show()
 
@@ -135,15 +139,15 @@ df_const.show()
 # 8. groupBy + aggregation
 # =============================================================
 # groupBy returns a GroupedData object.
-# You must follow it with an aggregation: agg(), count(), avg(), sum(), etc.
+# Must follow with: agg(), count(), avg(), sum(), etc.
 
-print("--- groupBy department → count ---")
+print("--- groupBy department - count ---")
 df.groupBy("department").count().show()
 
-print("--- groupBy department → average salary ---")
+print("--- groupBy department - average salary ---")
 df.groupBy("department").agg(avg("salary").alias("avg_salary")).show()
 
-print("--- groupBy department → count + avg salary ---")
+print("--- groupBy department - count + avg salary ---")
 df.groupBy("department") \
   .agg(
       count("*").alias("headcount"),
@@ -153,7 +157,7 @@ df.groupBy("department") \
 
 
 # =============================================================
-# 9. orderBy — sort results
+# 9. orderBy - sort results
 # =============================================================
 
 print("--- orderBy salary DESC ---")
@@ -164,20 +168,20 @@ df.orderBy(col("department").asc(), col("salary").desc()).show()
 
 
 # =============================================================
-# 10. Understanding lazy evaluation — nothing runs until an action
+# 10. Lazy evaluation - nothing runs until an action is called
 # =============================================================
-# The lines below build up a plan — NO computation happens:
+# The lines below build up a plan - NO computation happens yet:
 
 plan = df \
     .filter(col("age") > 28) \
     .withColumn("seniority", lit("Senior")) \
     .select("name", "department", "salary", "seniority")
 
-# explain() shows the execution plan Spark built
+# explain() shows the physical execution plan Spark built
 print("--- Execution plan (explain) ---")
 plan.explain()
 
-# .show() is the action that triggers the plan to actually run
+# .show() is the ACTION that triggers the entire plan to run
 print("--- Result after running the plan ---")
 plan.show()
 
@@ -185,9 +189,9 @@ plan.show()
 # =============================================================
 # 11. Read a CSV file (most common real-world usage)
 # =============================================================
-# Uncommnet and adjust the path to run this section.
-# header=True       → first row is column names
-# inferSchema=True  → Spark scans the file to detect types (slower)
+# Uncomment and adjust the path to run this section.
+# header=True       - first row is column names
+# inferSchema=True  - Spark scans the file to detect types (slower)
 
 # df_csv = spark.read.csv(
 #     "path/to/your/file.csv",
@@ -199,9 +203,9 @@ plan.show()
 
 
 # =============================================================
-# 12. Convert to Pandas (for small results)
+# 12. Convert to Pandas (for small results only)
 # =============================================================
-# .toPandas() collects ALL data to the Driver — only safe for small DataFrames.
+# .toPandas() collects ALL data to the Driver - only safe for small DataFrames.
 
 pandas_df = df.filter(col("department") == "Engineering").toPandas()
 print("\n--- Converted to Pandas ---")
