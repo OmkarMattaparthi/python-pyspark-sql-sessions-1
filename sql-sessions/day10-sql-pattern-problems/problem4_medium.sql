@@ -1,0 +1,55 @@
+-- =============================================================
+-- Problem 4 Medium — Moving Average
+-- Pattern: AVG OVER (PARTITION BY ROWS BETWEEN) — per stock
+-- =============================================================
+-- Question:
+--   Calculate the 3-day moving average of close_price for EACH
+--   stock separately. The window resets per stock.
+--   Round to 2 decimal places.
+--   Return: stock, price_date, close_price, moving_avg_3.
+--   Order by stock, price_date.
+-- =============================================================
+
+DROP TABLE IF EXISTS stock_prices;
+
+CREATE TABLE stock_prices (
+    price_id    SERIAL PRIMARY KEY,
+    stock       VARCHAR(10),
+    price_date  DATE,
+    close_price NUMERIC(10,2)
+);
+
+INSERT INTO stock_prices (stock, price_date, close_price) VALUES
+    ('AAPL', '2024-01-01', 185.20),
+    ('AAPL', '2024-01-02', 187.50),
+    ('AAPL', '2024-01-03', 183.80),
+    ('AAPL', '2024-01-04', 189.00),
+    ('AAPL', '2024-01-05', 192.30),
+    ('AAPL', '2024-01-08', 190.10),
+    ('AAPL', '2024-01-09', 194.50),
+    ('MSFT', '2024-01-01', 375.00),
+    ('MSFT', '2024-01-02', 378.20),
+    ('MSFT', '2024-01-03', 372.50),
+    ('MSFT', '2024-01-04', 380.00),
+    ('MSFT', '2024-01-05', 383.70);
+
+-- Expected output:
+--
+--   stock | price_date | close_price | moving_avg_3
+--   ------+------------+-------------+-------------
+--   AAPL  | 2024-01-01 |      185.20 |       185.20
+--   AAPL  | 2024-01-02 |      187.50 |       186.35
+--   AAPL  | 2024-01-03 |      183.80 |       185.50
+--   AAPL  | 2024-01-04 |      189.00 |       186.77
+--   AAPL  | 2024-01-05 |      192.30 |       188.37
+--   AAPL  | 2024-01-08 |      190.10 |       190.47
+--   AAPL  | 2024-01-09 |      194.50 |       192.30
+--   MSFT  | 2024-01-01 |      375.00 |       375.00
+--   MSFT  | 2024-01-02 |      378.20 |       376.60
+--   MSFT  | 2024-01-03 |      372.50 |       375.23
+--   MSFT  | 2024-01-04 |      380.00 |       376.90
+--   MSFT  | 2024-01-05 |      383.70 |       378.73
+--
+-- Note: Add PARTITION BY stock so each stock's window is independent.
+
+-- YOUR ANSWER:
