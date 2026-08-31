@@ -333,35 +333,39 @@ Your Laptop
 
 ## 8. Windows Local Setup
 
-### Step 1: Install Java (JDK 11)
+### Step 1: Java — Already Available via DBeaver
 
-Spark runs on the JVM. Java is required.
+This machine uses the **JRE bundled with DBeaver** as the Java runtime for Spark.
 
-1. Download **JDK 11** from: https://adoptium.net (Eclipse Temurin — free, LTS)
-   - Choose: Windows → x64 → JDK → `.msi` installer
-2. Run the installer with default options
-3. Verify:
-   ```
-   java -version
-   ```
-   Expected output: `openjdk version "11.x.x"`
+Path: `C:/Program Files/DBeaver/jre`
 
-**Why JDK 11?** Spark 3.x officially supports Java 8 and 11. Java 17 works but some older Spark versions have issues with module system changes. Java 11 is the safest choice.
+No separate Java installation needed. Set `JAVA_HOME` in your script before importing PySpark:
 
-### Step 2: Set JAVA_HOME
+```python
+import os
+os.environ['JAVA_HOME'] = 'C:/Program Files/DBeaver/jre'
+```
 
-1. Search "Environment Variables" in Windows Start
-2. Click "Edit the system environment variables" → "Environment Variables"
-3. Under **System variables** → New:
-   - Variable name: `JAVA_HOME`
-   - Variable value: `C:\Program Files\Eclipse Adoptium\jdk-11.x.x.x-hotspot` (adjust to your install path)
-4. Find `Path` in System variables → Edit → New → add: `%JAVA_HOME%\bin`
-5. Click OK on all dialogs
+This must be set **before** `from pyspark.sql import SparkSession`.
 
-Verify in a **new** PowerShell window:
+**Verify the JRE exists:**
 ```powershell
-$env:JAVA_HOME
-java -version
+ls "C:\Program Files\DBeaver\jre\bin\java.exe"
+```
+
+**Why DBeaver's JRE works:** DBeaver ships a full OpenJDK 11 JRE. PySpark only needs a JRE (not the full JDK) to run in local mode. It is the same Java 11 that Spark expects.
+
+### Step 2: Python Path
+
+This machine uses Python 3.11 at:
+```
+C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe
+```
+
+Set in your script:
+```python
+os.environ['PYSPARK_PYTHON']        = r'C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe'
+os.environ['PYSPARK_DRIVER_PYTHON'] = r'C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe'
 ```
 
 ### Step 3: Install Python 3.9+

@@ -4,6 +4,14 @@ Topics: SparkSession, createDataFrame, read CSV, show, printSchema,
         select, filter, withColumn, groupBy, count, stop
 """
 
+import os
+
+# Must be set BEFORE importing pyspark — Spark reads these at import time.
+# JAVA_HOME points to DBeaver's bundled JRE (Java 11) on this machine.
+os.environ['JAVA_HOME']             = 'C:/Program Files/DBeaver/jre'
+os.environ['PYSPARK_PYTHON']        = r'C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe'
+os.environ['PYSPARK_DRIVER_PYTHON'] = r'C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe'
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, upper, lit, avg, count
 
@@ -19,10 +27,10 @@ spark = SparkSession.builder \
     .appName("Day1 - PySpark Intro") \
     .master("local[*]") \
     .config("spark.sql.shuffle.partitions", "4") \
+    .config("spark.ui.showConsoleProgress", "false") \
     .getOrCreate()
 
-# Suppress INFO logs — only show warnings and errors
-spark.sparkContext.setLogLevel("WARN")
+spark.sparkContext.setLogLevel("ERROR")
 
 print("=" * 60)
 print("SparkSession created")
