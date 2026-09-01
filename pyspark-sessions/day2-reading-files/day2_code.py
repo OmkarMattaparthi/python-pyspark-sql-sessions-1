@@ -14,31 +14,22 @@ os.environ['JAVA_HOME']             = 'C:/Program Files/DBeaver/jre'
 os.environ['PYSPARK_PYTHON']        = r'C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe'
 os.environ['PYSPARK_DRIVER_PYTHON'] = r'C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe'
 
+# SparkSession is the only import needed before the session starts
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col, explode, explode_outer,
-    from_json, to_json, get_json_object, json_tuple,
-    regexp_extract, split, input_file_name
-)
-from pyspark.sql.types import (
-    StructType, StructField,
-    IntegerType, StringType, DoubleType, BooleanType,
-    DateType, ArrayType, MapType
-)
 
 # -------------------------------------------------------
 # Sample data files used in this session (inside data/)
 # -------------------------------------------------------
-# employees.csv          - standard CSV with header
+# employees.csv           - standard CSV with header
 # employees_no_header.csv - no header row
-# employees_pipe.csv     - pipe (|) separator
-# employees_dirty.csv    - missing/bad values
+# employees_pipe.csv      - pipe (|) separator
+# employees_dirty.csv     - missing/bad values
 # employees_multiline.csv - values spanning multiple lines
-# employees_flat.json    - one JSON object per line (JSONL)
-# employees_nested.json  - nested struct + array fields
-# employees_array.json   - whole file is a JSON array
-# orders.json            - nested array of items per order
-# logs.txt               - raw log lines (unstructured)
+# employees_flat.json     - one JSON object per line (JSONL)
+# employees_nested.json   - nested struct + array fields
+# employees_array.json    - whole file is a JSON array
+# orders.json             - nested array of items per order
+# logs.txt                - raw log lines (unstructured)
 # -------------------------------------------------------
 
 spark = SparkSession.builder \
@@ -60,8 +51,10 @@ print("=" * 60)
 # =============================================================
 # SECTION 1 - READ CSV: basic with inferSchema
 # =============================================================
-# inferSchema=True makes Spark scan the file to detect types.
-# header=True uses the first row as column names.
+# New import: nothing extra — spark.read is built into SparkSession
+#
+# inferSchema=True  -> Spark reads the file twice to detect column types
+# header=True       -> first row becomes column names
 
 print("\n--- 1A: CSV with header + inferSchema ---")
 df_infer = spark.read.csv(
@@ -71,13 +64,16 @@ df_infer = spark.read.csv(
 )
 df_infer.show()
 df_infer.printSchema()
-# Notice: salary=long, age=int, is_active=boolean, join_date=date
 
 
 # =============================================================
-# SECTION 2 - READ CSV: all options via .option()
+# SECTION 2 - READ CSV: .option() and .options() styles
 # =============================================================
-# You can chain .option() calls or pass a dict to .options()
+# New import: nothing extra
+#
+# Two ways to pass options:
+#   .option("key", "value")          - chain one at a time
+#   .options(key="value", key2="v2") - pass all at once as kwargs
 
 print("\n--- 2A: CSV - chaining .option() calls ---")
 df_opts = spark.read \
@@ -90,7 +86,7 @@ df_opts = spark.read \
     .csv(f"{DATA}/employees.csv")
 df_opts.show(5)
 
-print("\n--- 2B: CSV - passing options as dict ---")
+print("\n--- 2B: CSV - passing all options as kwargs to .options() ---")
 df_opts2 = spark.read \
     .options(header="true", inferSchema="true", nullValue="N/A") \
     .csv(f"{DATA}/employees.csv")
@@ -98,8 +94,12 @@ df_opts2.show(5)
 
 
 # =============================================================
-# SECTION 3 - READ CSV: no header (assign column names manually)
+# SECTION 3 - READ CSV: no header row
 # =============================================================
+# New import: nothing extra
+#
+# When header=False, Spark names columns _c0, _c1, _c2 ...
+# Use .toDF() to assign proper names after reading.
 
 print("\n--- 3: CSV with no header row ---")
 df_no_hdr = spark.read.csv(
@@ -107,42 +107,47 @@ df_no_hdr = spark.read.csv(
     header=False,
     inferSchema=True
 )
-# Columns get auto-named _c0, _c1, _c2 ...
+print("Auto-named columns (_c0, _c1 ...):")
 df_no_hdr.show()
 
-# Rename columns after reading
 df_no_hdr = df_no_hdr.toDF("emp_id", "name", "department", "salary", "age", "join_date", "is_active")
-print("After renaming columns:")
+print("After renaming with .toDF():")
 df_no_hdr.show()
 
 
 # =============================================================
-# SECTION 4 - READ CSV: custom delimiter (pipe)
+# SECTION 4 - READ CSV: custom delimiter
 # =============================================================
+# New import: nothing extra
+#
+# sep= sets the column separator. Default is comma.
+# Use sep="|" for pipe-delimited files, sep="\t" for TSV.
 
 print("\n--- 4: CSV with pipe (|) separator ---")
 df_pipe = spark.read.csv(
     f"{DATA}/employees_pipe.csv",
     header=True,
     inferSchema=True,
-    sep="|"          # sep= is shorthand for .option("sep", "|")
+    sep="|"
 )
 df_pipe.show()
 
 
 # =============================================================
-# SECTION 5 - READ CSV: multiline values
+# SECTION 5 - READ CSV: multiline values inside quotes
 # =============================================================
-# When a field value contains a newline, set multiLine=True.
-# Without it Spark treats each line as a separate row and breaks the parse.
+# New import: nothing extra
+#
+# When a field value contains a newline character and is wrapped
+# in quotes, set multiLine=True so Spark reads it as one value.
 
-print("\n--- 5: CSV with multiline values ---")
+print("\n--- 5: CSV with multiline quoted values ---")
 df_multi = spark.read.csv(
     f"{DATA}/employees_multiline.csv",
     header=True,
     inferSchema=True,
     multiLine=True,
-    quote='"',       # double-quote wraps multiline values
+    quote='"',
     escape='"'
 )
 df_multi.show(truncate=False)
@@ -151,10 +156,14 @@ df_multi.show(truncate=False)
 # =============================================================
 # SECTION 6 - READ CSV: dirty data and parse modes
 # =============================================================
-# employees_dirty.csv has: missing emp_id, missing name, "N/A" salary
+# New import: nothing extra
+#
+# Three modes for handling bad/corrupt rows:
+#   PERMISSIVE   (default) - bad values become NULL, no rows dropped
+#   DROPMALFORMED          - silently drops rows that cannot be parsed
+#   FAILFAST               - throws an exception on first bad row
 
 print("\n--- 6A: Dirty CSV - PERMISSIVE mode (default) ---")
-# Bad values become NULL. No rows are dropped.
 df_dirty = spark.read.csv(
     f"{DATA}/employees_dirty.csv",
     header=True,
@@ -164,7 +173,6 @@ df_dirty = spark.read.csv(
 df_dirty.show()
 
 print("\n--- 6B: Dirty CSV - DROPMALFORMED mode ---")
-# Rows that cannot be parsed at all are silently dropped.
 df_drop = spark.read \
     .option("header", "true") \
     .option("inferSchema", "true") \
@@ -172,21 +180,31 @@ df_drop = spark.read \
     .csv(f"{DATA}/employees_dirty.csv")
 df_drop.show()
 
-print("\n--- 6C: Dirty CSV - FAILFAST mode (raises error on first bad row) ---")
-# Uncomment to see the exception - useful in production to catch data issues early
+print("\n--- 6C: FAILFAST mode - raises exception on first bad row ---")
+# Uncomment to see the exception in action
 # df_fail = spark.read \
 #     .option("header", "true") \
 #     .option("inferSchema", "true") \
 #     .option("mode", "FAILFAST") \
 #     .csv(f"{DATA}/employees_dirty.csv")
 # df_fail.show()
-print("    (FAILFAST example commented out - it raises an exception on dirty data)")
+print("    (commented out - uncomment to see exception on dirty data)")
 
 
 # =============================================================
-# SECTION 7 - DEFINED SCHEMA (StructType)
+# SECTION 7 - DEFINED SCHEMA: StructType and DDL string
 # =============================================================
-# Explicit schema: faster (one file pass), type-safe, production-ready.
+# New imports: StructType, StructField, and data type classes
+#
+# Why define schema explicitly?
+#   - Faster: file is read only ONCE (inferSchema reads twice)
+#   - Safer:  you control exact types (no guessing)
+#   - Required in production pipelines
+
+from pyspark.sql.types import (
+    StructType, StructField,
+    IntegerType, StringType, DoubleType, BooleanType, DateType
+)
 
 print("\n--- 7A: Defined schema using StructType ---")
 emp_schema = StructType([
@@ -208,7 +226,7 @@ df_schema.show()
 df_schema.printSchema()
 
 print("\n--- 7B: Defined schema using DDL string (shortcut) ---")
-# DDL string is quicker to write - same result as StructType
+# SQL DDL string - shorter to write, same result as StructType above
 ddl_schema = "emp_id INT, name STRING, department STRING, salary DOUBLE, age INT, join_date DATE, is_active BOOLEAN"
 
 df_ddl = spark.read \
@@ -219,7 +237,7 @@ df_ddl = spark.read \
 df_ddl.show()
 df_ddl.printSchema()
 
-print("\n--- 7C: Schema with no header (column order matters) ---")
+print("\n--- 7C: Defined schema with no header (column order matters!) ---")
 schema_no_hdr = "emp_id INT, name STRING, department STRING, salary DOUBLE, age INT, join_date DATE, is_active BOOLEAN"
 df_schema_nohdr = spark.read \
     .schema(schema_no_hdr) \
@@ -231,42 +249,48 @@ df_schema_nohdr.show()
 # =============================================================
 # SECTION 8 - READ JSON: flat JSONL (one object per line)
 # =============================================================
-# Default Spark JSON format - each line is a separate JSON object.
-# Schema is inferred automatically from the JSON keys.
+# New imports: reuse StructType, StructField, type classes from Section 7
+#
+# Spark's default JSON reader expects JSONL format:
+#   one complete JSON object per line.
+# Schema is inferred automatically from keys - columns sorted alphabetically.
 
 print("\n--- 8A: Flat JSONL - inferSchema (automatic) ---")
 df_json = spark.read.json(f"{DATA}/employees_flat.json")
 df_json.show()
 df_json.printSchema()
 
-print("\n--- 8B: Flat JSONL - with explicit schema ---")
+print("\n--- 8B: Flat JSONL - with explicit StructType schema ---")
 json_schema = StructType([
     StructField("emp_id",     IntegerType(), True),
     StructField("name",       StringType(),  True),
     StructField("department", StringType(),  True),
     StructField("salary",     DoubleType(),  True),
     StructField("age",        IntegerType(), True),
-    StructField("join_date",  StringType(),  True),  # keep as string, parse later
+    StructField("join_date",  StringType(),  True),
     StructField("is_active",  BooleanType(), True),
 ])
 df_json_schema = spark.read.schema(json_schema).json(f"{DATA}/employees_flat.json")
 df_json_schema.show()
 
-print("\n--- 8C: JSON options - primitivesAsString ---")
-# Forces ALL values (numbers, booleans) to be read as strings.
-# Useful when you want to delay type casting.
+print("\n--- 8C: JSON option - primitivesAsString ---")
+# Forces numbers and booleans to be read as strings.
+# Useful when you want to delay casting or inspect raw values.
 df_str = spark.read \
     .option("primitivesAsString", "true") \
     .json(f"{DATA}/employees_flat.json")
 df_str.show()
-df_str.printSchema()  # all columns will be StringType
+df_str.printSchema()
 
 
 # =============================================================
 # SECTION 9 - READ JSON: multi-line (whole file is a JSON array)
 # =============================================================
-# employees_array.json contains a JSON array [...] spanning multiple lines.
-# Without multiLine=True, Spark will fail or produce wrong results.
+# New imports: nothing extra
+#
+# When the entire file is a JSON array [...] spanning multiple lines,
+# set multiLine=True. Without it Spark reads each line independently
+# and the [ ] brackets cause parse errors.
 
 print("\n--- 9: Multi-line JSON array ---")
 df_array = spark.read \
@@ -277,13 +301,20 @@ df_array.printSchema()
 
 
 # =============================================================
-# SECTION 10 - READ JSON: nested struct + array fields
+# SECTION 10 - READ JSON: nested struct and array fields
 # =============================================================
-# employees_nested.json has:
-#   address: {city, state, pincode}  -> becomes a StructType column
-#   skills:  ["Python", "Spark"]     -> becomes an ArrayType column
+# New imports: col, explode, explode_outer
+#
+# Spark automatically maps:
+#   JSON object  {"city": ...}    -> StructType column
+#   JSON array   ["Python", ...]  -> ArrayType column
+#
+# Access struct fields with dot notation: col("address.city")
+# Flatten array columns with explode()
 
-print("\n--- 10A: Nested JSON - read as-is ---")
+from pyspark.sql.functions import col, explode, explode_outer
+
+print("\n--- 10A: Nested JSON - read as-is, see schema ---")
 df_nested = spark.read.json(f"{DATA}/employees_nested.json")
 df_nested.show(truncate=False)
 df_nested.printSchema()
@@ -296,15 +327,17 @@ df_nested.select(
     col("address.pincode").alias("pincode")
 ).show()
 
-print("\n--- 10C: explode array column - one row per skill ---")
-# explode turns ["Python", "Spark", "SQL"] into 3 separate rows
+print("\n--- 10C: explode() - one row per array element ---")
+# Each skill in the array becomes its own row.
+# Rows with null/empty arrays are dropped by explode().
 df_nested.select(
     col("name"),
     col("department"),
     explode(col("skills")).alias("skill")
 ).show()
 
-print("\n--- 10D: explode_outer - keeps rows even if array is null/empty ---")
+print("\n--- 10D: explode_outer() - keeps rows even when array is null/empty ---")
+# Same as explode but NULL array rows are kept (skill = NULL).
 df_nested.select(
     col("name"),
     explode_outer(col("skills")).alias("skill")
@@ -312,17 +345,21 @@ df_nested.select(
 
 
 # =============================================================
-# SECTION 11 - READ JSON: deeply nested with arrays of structs
+# SECTION 11 - READ JSON: array of structs (deeply nested)
 # =============================================================
-# orders.json has items: [{product, qty, price}, ...]
-# After explode, each item becomes a row with order context.
+# New imports: to_json  (col, explode already imported in Section 10)
+#
+# orders.json has: items: [{product, qty, price}, ...]
+# Pattern: explode the array -> select item.field to flatten each struct
 
-print("\n--- 11A: Orders JSON - deeply nested array of structs ---")
+from pyspark.sql.functions import to_json
+
+print("\n--- 11A: Orders JSON - array of structs ---")
 df_orders = spark.read.json(f"{DATA}/orders.json")
 df_orders.show(truncate=False)
 df_orders.printSchema()
 
-print("\n--- 11B: Explode items array and access struct fields ---")
+print("\n--- 11B: Flatten - explode array then access struct fields ---")
 df_orders_flat = df_orders.select(
     col("order_id"),
     col("customer"),
@@ -338,7 +375,7 @@ df_orders_flat = df_orders.select(
 )
 df_orders_flat.show()
 
-print("\n--- 11C: to_json - convert struct column back to JSON string ---")
+print("\n--- 11C: to_json() - convert a struct/array column back to JSON string ---")
 df_orders.select(
     col("order_id"),
     col("customer"),
@@ -349,19 +386,24 @@ df_orders.select(
 # =============================================================
 # SECTION 12 - PARSE JSON from a STRING column
 # =============================================================
-# Common in real data: a column contains JSON text as a string.
-# Use from_json() to parse it into a struct.
+# New imports: from_json, get_json_object, json_tuple
+#
+# Real-world scenario: a column in your table stores JSON as plain text.
+# Three ways to extract fields from it:
+#   from_json()         -> parse whole string into a struct (most powerful)
+#   get_json_object()   -> extract one field using JSONPath (fastest for 1 field)
+#   json_tuple()        -> extract multiple fields at once (concise)
 
-print("\n--- 12A: from_json - parse JSON string column into struct ---")
-# Simulate a DataFrame where one column holds JSON as a string
+from pyspark.sql.functions import from_json, get_json_object, json_tuple
+
+print("\n--- 12A: from_json() - parse JSON string into a struct column ---")
 raw_data = [
     (1, '{"city": "Bangalore", "pincode": "560001"}'),
-    (2, '{"city": "Mumbai", "pincode": "400001"}'),
+    (2, '{"city": "Mumbai",    "pincode": "400001"}'),
     (3, '{"city": "Hyderabad", "pincode": "500001"}'),
 ]
 df_raw = spark.createDataFrame(raw_data, ["emp_id", "address_json"])
 
-# Define schema of the JSON inside the string
 addr_schema = StructType([
     StructField("city",    StringType(), True),
     StructField("pincode", StringType(), True),
@@ -371,24 +413,25 @@ df_parsed = df_raw.withColumn("address", from_json(col("address_json"), addr_sch
 df_parsed.show()
 df_parsed.printSchema()
 
-# Now access nested fields
+# After parsing - access fields with dot notation
 df_parsed.select(
     col("emp_id"),
     col("address.city").alias("city"),
     col("address.pincode").alias("pincode")
 ).show()
 
-print("\n--- 12B: get_json_object - extract single field from JSON string ---")
-# Faster than from_json when you need just one field.
-# Uses JSONPath syntax: $.field or $.nested.field
+print("\n--- 12B: get_json_object() - extract one field using JSONPath ---")
+# Uses $.field syntax. Returns a string column.
+# Best when you only need 1-2 fields and speed matters.
 df_raw.select(
     col("emp_id"),
     get_json_object(col("address_json"), "$.city").alias("city"),
     get_json_object(col("address_json"), "$.pincode").alias("pincode")
 ).show()
 
-print("\n--- 12C: json_tuple - extract multiple fields in one call ---")
-# More concise than multiple get_json_object calls
+print("\n--- 12C: json_tuple() - extract multiple fields in one call ---")
+# Cleaner than multiple get_json_object calls.
+# Returns all extracted fields as string columns.
 df_raw.select(
     col("emp_id"),
     json_tuple(col("address_json"), "city", "pincode").alias("city", "pincode")
@@ -396,18 +439,24 @@ df_raw.select(
 
 
 # =============================================================
-# SECTION 13 - READ TEXT FILE (logs)
+# SECTION 13 - READ TEXT FILE (raw logs)
 # =============================================================
-# spark.read.text() reads each line as a single "value" column.
-# Then use regexp_extract / split to parse the structure.
+# New imports: regexp_extract
+#
+# spark.read.text() reads the file as-is.
+# Each line becomes one row in a single column called "value".
+# Use regexp_extract() to pull structured fields out of each line.
 
-print("\n--- 13A: Read raw text file ---")
+from pyspark.sql.functions import regexp_extract
+
+print("\n--- 13A: Read raw text file - each line is one 'value' row ---")
 df_text = spark.read.text(f"{DATA}/logs.txt")
 df_text.show(truncate=False)
-df_text.printSchema()  # one column: value (StringType)
+df_text.printSchema()
 
 print("\n--- 13B: Parse log lines with regexp_extract ---")
-# Log format: "2024-01-15 08:00:01 INFO  UserLogin ..."
+# Log format: "2024-01-15 08:00:01 INFO  EventName ..."
+# regexp_extract(column, regex_pattern, group_number)
 df_logs = df_text.select(
     regexp_extract(col("value"), r"^(\d{4}-\d{2}-\d{2})", 1).alias("log_date"),
     regexp_extract(col("value"), r"^\S+ (\S+)", 1).alias("log_time"),
@@ -417,7 +466,7 @@ df_logs = df_text.select(
 )
 df_logs.show(truncate=False)
 
-print("\n--- 13C: Filter logs by level ---")
+print("\n--- 13C: Filter parsed logs by level ---")
 df_logs.filter(col("log_level") == "ERROR").show(truncate=False)
 df_logs.filter(col("log_level").isin("ERROR", "WARN")).show(truncate=False)
 
@@ -425,24 +474,25 @@ df_logs.filter(col("log_level").isin("ERROR", "WARN")).show(truncate=False)
 # =============================================================
 # SECTION 14 - READ MULTIPLE FILES
 # =============================================================
-# NOTE: Reading a whole folder or using wildcards requires winutils on Windows.
-# We use explicit file lists here which work without it.
-# On Linux/Mac/Databricks the folder and wildcard paths work natively.
+# New imports: input_file_name
+#
+# Spark can read multiple files in one call:
+#   folder path   -> all files of that format in the folder
+#   wildcard path -> files matching the pattern
+#   list of paths -> specific files you name explicitly
+#
+# Note: folder and wildcard reads require native Hadoop on Windows.
+# Explicit file lists work on all platforms.
 
-print("\n--- 14A: Read a whole folder ---")
-# On Linux/Mac/Databricks:
-#   spark.read.csv("data/", header=True, inferSchema=True)
-# On Windows (without winutils), pass explicit files instead:
-print("    Folder read example (Linux/Mac/Databricks):")
+from pyspark.sql.functions import input_file_name
+
+print("\n--- 14A: Read a whole folder (Linux/Mac/Databricks) ---")
 print("    spark.read.csv('data/', header=True, inferSchema=True)")
-print("    On Windows without winutils - use explicit file list (see 14C)")
+print("    -> reads ALL csv files in the folder as one DataFrame")
 
 print("\n--- 14B: Wildcard pattern (Linux/Mac/Databricks) ---")
-# On Linux/Mac/Databricks:
-#   spark.read.csv("data/employees_*.csv", header=True, inferSchema=True)
-# On Windows without winutils - pass a list instead.
-print("    Wildcard example (Linux/Mac/Databricks):")
 print("    spark.read.csv('data/employees_*.csv', header=True, inferSchema=True)")
+print("    -> reads only files matching the pattern")
 
 print("\n--- 14C: List of specific files (works on all platforms) ---")
 df_list = spark.read.csv(
@@ -450,12 +500,12 @@ df_list = spark.read.csv(
     header=True,
     inferSchema=True
 )
-print(f"Rows from file list: {df_list.count()}")
+print(f"Total rows from both files: {df_list.count()}")
 df_list.show(5)
 
-print("\n--- 14D: Add source filename column ---")
-# input_file_name() returns the full path of the file each row came from.
-# Very useful when reading multiple files to trace which file a row is from.
+print("\n--- 14D: input_file_name() - add source file as a column ---")
+# Tells you which file each row came from.
+# Very useful when reading many files to trace data lineage.
 df_with_source = spark.read \
     .option("header", "true") \
     .option("inferSchema", "true") \
@@ -465,18 +515,25 @@ df_with_source.select("emp_id", "name", "source_file").show(10, truncate=False)
 
 
 # =============================================================
-# SECTION 15 - WRITE FILES (reference - works on Linux/Mac/Databricks)
+# SECTION 15 - WRITE FILES (reference)
 # =============================================================
-# Writing files requires the native Hadoop library on Windows.
-# On Linux/Mac/Databricks these work without any extra setup.
+# New imports: nothing extra - write is built into DataFrame
+#
+# Writing files requires native Hadoop on Windows.
+# Works out of the box on Linux/Mac/Databricks.
+#
+# Spark always writes a FOLDER, not a single file.
+# Inside the folder: one part-*.csv (or .json/.parquet) per partition.
 
-print("\n--- 15: Write reference (run on Linux/Mac/Databricks) ---")
-print("    CSV  : df.write.mode('overwrite').option('header','true').csv('output/folder')")
-print("    JSON : df.write.mode('overwrite').json('output/folder')")
-print("    Parquet: df.write.mode('overwrite').parquet('output/folder')")
-print("    Note: Spark always writes a FOLDER, not a single file.")
-print("          One part-*.csv / part-*.json file is created per partition.")
-print("    Write modes: overwrite | append | ignore | error(default)")
+print("\n--- 15: Write modes reference ---")
+print("    overwrite : delete existing data and write fresh")
+print("    append    : add to existing data")
+print("    ignore    : do nothing if path already exists")
+print("    error     : throw exception if path exists (default)")
+print("")
+print("    CSV     : df.write.mode('overwrite').option('header','true').csv('out/')")
+print("    JSON    : df.write.mode('overwrite').json('out/')")
+print("    Parquet : df.write.mode('overwrite').parquet('out/')")
 
 # Uncomment on Linux/Mac/Databricks:
 # df_schema.write.mode("overwrite").option("header", "true") \
@@ -486,20 +543,26 @@ print("    Write modes: overwrite | append | ignore | error(default)")
 
 
 # =============================================================
-# SUMMARY
+# SUMMARY OF IMPORTS USED TODAY
 # =============================================================
+# from pyspark.sql import SparkSession            -- always needed
+#
+# Section 7  : from pyspark.sql.types import StructType, StructField,
+#                  IntegerType, StringType, DoubleType, BooleanType, DateType
+#
+# Section 10 : from pyspark.sql.functions import col, explode, explode_outer
+#
+# Section 11 : from pyspark.sql.functions import to_json
+#
+# Section 12 : from pyspark.sql.functions import from_json, get_json_object, json_tuple
+#
+# Section 13 : from pyspark.sql.functions import regexp_extract
+#
+# Section 14 : from pyspark.sql.functions import input_file_name
+
 print("\n" + "=" * 60)
-print("Day 2 Summary")
-print("=" * 60)
-print("CSV reading    : header, inferSchema, sep, nullValue,")
-print("                 multiLine, PERMISSIVE/DROPMALFORMED/FAILFAST")
-print("Schema options : StructType, DDL string, inferSchema")
-print("JSON reading   : JSONL, multiLine array, nested struct,")
-print("                 array explode, from_json, get_json_object")
-print("Text reading   : spark.read.text + regexp_extract")
-print("Multi-file     : folder, wildcard, list, input_file_name()")
-print("Write          : mode=overwrite/append/ignore/error")
+print("Day 2 Complete")
 print("=" * 60)
 
 spark.stop()
-print("\nSparkSession stopped. Done.")
+print("SparkSession stopped. Done.")
