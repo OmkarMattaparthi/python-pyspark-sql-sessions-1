@@ -1,0 +1,139 @@
+# =============================================================
+# Python
+# =============================================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.egg
+*.egg-info/
+dist/
+build/
+wheels/
+*.whl
+.eggs/
+pip-wheel-metadata/
+share/python-wheels/
+
+# =============================================================
+# Virtual Environments
+# =============================================================
+.venv/
+venv/
+env/
+ENV/
+.env/
+virtualenv/
+pyspark-venv/
+
+# =============================================================
+# Jupyter Notebooks
+# =============================================================
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# =============================================================
+# Spark / PySpark
+# =============================================================
+# Spark event logs and history
+spark-warehouse/
+spark-events/
+derby.log
+metastore_db/
+
+# Spark shuffle and temp files
+/tmp/
+*.tmp
+
+# JVM crash logs (e.g. hs_err_pid*.log, replay_pid*.log)
+hs_err_pid*.log
+replay_pid*.log
+
+# =============================================================
+# Environment / Secrets
+# =============================================================
+.env
+.env.*
+*.env
+secrets.py
+config_local.py
+
+# =============================================================
+# OS generated files
+# =============================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# =============================================================
+# IDE and Editors
+# =============================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Jupyter
+.jupyter/
+
+# Spyder
+.spyderproject.db
+.spyproject/
+
+# =============================================================
+# Logs
+# =============================================================
+*.log
+logs/
+log/
+
+# =============================================================
+# Database / Local data files
+# =============================================================
+*.sqlite
+*.sqlite3
+*.db
+
+# =============================================================
+# Large / generated data files (keep sample CSVs but not bulk data)
+# =============================================================
+*.parquet
+*.orc
+*.avro
+
+# =============================================================
+# Compiled files
+# =============================================================
+*.class
+*.jar
+*.war
+
+# =============================================================
+# Project-specific
+# =============================================================
+# The 210-day reference file — large, personal reference, not part of sessions
+SQL_210_Days_Data_Engineer.md
