@@ -1,0 +1,7 @@
+emp_id,name,department,salary,age
+1,Alice,Engineering,85000,30
+2,Bob,Sales,60000,25
+,Carol,Engineering,92000,35
+4,,Sales,58000,28
+5,Eve,HR,N/A,32
+6,Frank,Engineering,78000,

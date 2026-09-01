@@ -1,0 +1,4 @@
+{"order_id": "ORD001", "customer": "Alice", "amount": 1500.50, "status": "delivered", "items": [{"product": "Laptop", "qty": 1, "price": 1200.00}, {"product": "Mouse", "qty": 2, "price": 150.25}]}
+{"order_id": "ORD002", "customer": "Bob", "amount": 350.00, "status": "pending", "items": [{"product": "Keyboard", "qty": 1, "price": 350.00}]}
+{"order_id": "ORD003", "customer": "Carol", "amount": 2200.75, "status": "delivered", "items": [{"product": "Monitor", "qty": 2, "price": 950.00}, {"product": "HDMI Cable", "qty": 3, "price": 100.25}]}
+{"order_id": "ORD004", "customer": "Dave", "amount": 89.99, "status": "cancelled", "items": [{"product": "USB Hub", "qty": 1, "price": 89.99}]}
