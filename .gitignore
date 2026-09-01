@@ -38,17 +38,12 @@ pyspark-venv/
 # =============================================================
 # Spark / PySpark
 # =============================================================
-# Spark event logs and history
 spark-warehouse/
 spark-events/
 derby.log
 metastore_db/
-
-# Spark shuffle and temp files
 /tmp/
 *.tmp
-
-# JVM crash logs (e.g. hs_err_pid*.log, replay_pid*.log)
 hs_err_pid*.log
 replay_pid*.log
 

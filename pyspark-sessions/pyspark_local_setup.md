@@ -160,42 +160,7 @@ C:\Users\YourName\AppData\Local\Programs\Python\Python311\python.exe
 
 ---
 
-### Step 6 — Install winutils (Windows-only requirement)
-
-Spark on Windows needs a small binary called `winutils.exe` to simulate Hadoop filesystem calls.
-
-1. Go to: **https://github.com/cdarlint/winutils**
-2. Open the folder matching your PySpark version's Hadoop:
-   - For PySpark 3.5.x → open **`hadoop-3.3.5/bin/`**
-3. Download both files:
-   - `winutils.exe`
-   - `hadoop.dll`
-4. Create this folder on your machine:
-   ```
-   C:\hadoop\bin\
-   ```
-5. Move both downloaded files into `C:\hadoop\bin\`
-
-6. Set the environment variable:
-   - Open Environment Variables again (same as Step 3)
-   - Under **System variables** → **New**:
-     - Variable name: `HADOOP_HOME`
-     - Variable value: `C:\hadoop`
-   - Find `Path` → double-click → New → add: `%HADOOP_HOME%\bin`
-   - Click OK on all windows
-
-7. Open a **new** PowerShell and verify:
-
-```powershell
-echo $env:HADOOP_HOME
-ls C:\hadoop\bin\
-```
-
-You should see `winutils.exe` and `hadoop.dll` listed.
-
----
-
-### Step 7 — Install PySpark
+### Step 6 — Install PySpark
 
 ```powershell
 pip install pyspark==3.5.6 pandas==1.5.3 pyarrow==24.0.0 numpy==1.23.5
@@ -203,7 +168,7 @@ pip install pyspark==3.5.6 pandas==1.5.3 pyarrow==24.0.0 numpy==1.23.5
 
 ---
 
-### Step 8 — Set Environment Variables in Your Script
+### Step 7 — Set Environment Variables in Your Script
 
 At the very top of every PySpark script (before any pyspark import), add:
 
@@ -389,12 +354,6 @@ import os
 os.environ['JAVA_HOME']             = '/opt/homebrew/opt/openjdk@11'   # your path from Step 3
 os.environ['PYSPARK_PYTHON']        = '/opt/homebrew/bin/python3.11'   # your path from Step 6
 os.environ['PYSPARK_DRIVER_PYTHON'] = '/opt/homebrew/bin/python3.11'
-```
-
-**Note for Apple Silicon (M1/M2/M3):** If you hit an error about native Hadoop library, add this too:
-
-```python
-os.environ['HADOOP_OPTS'] = '-Djava.library.path='
 ```
 
 ---
@@ -619,15 +578,15 @@ sys.stdout.reconfigure(encoding='utf-8')
 # --- REPLACE THESE WITH YOUR ACTUAL PATHS ---
 
 # Windows example:
-# os.environ['JAVA_HOME']  = r'C:\Program Files\Eclipse Adoptium\jdk-11.0.23.9-hotspot'
+# os.environ['JAVA_HOME']      = r'C:\Program Files\Eclipse Adoptium\jdk-11.0.23.9-hotspot'
 # os.environ['PYSPARK_PYTHON'] = r'C:\Users\YourName\AppData\Local\Programs\Python\Python311\python.exe'
 
 # macOS example:
-# os.environ['JAVA_HOME']  = '/opt/homebrew/opt/openjdk@11'
+# os.environ['JAVA_HOME']      = '/opt/homebrew/opt/openjdk@11'
 # os.environ['PYSPARK_PYTHON'] = '/opt/homebrew/bin/python3.11'
 
 # Ubuntu example:
-# os.environ['JAVA_HOME']  = '/usr/lib/jvm/java-11-openjdk-amd64'
+# os.environ['JAVA_HOME']      = '/usr/lib/jvm/java-11-openjdk-amd64'
 # os.environ['PYSPARK_PYTHON'] = '/usr/bin/python3.11'
 
 os.environ['PYSPARK_DRIVER_PYTHON'] = os.environ['PYSPARK_PYTHON']
@@ -701,18 +660,6 @@ PySpark is working correctly!
 | Ubuntu | Add `export JAVA_HOME=...` to `~/.bashrc` and run `source ~/.bashrc` |
 
 Always open a **new terminal** after changing environment variables — existing terminals do not pick up changes.
-
----
-
-### Error: `Failed to locate winutils binary` (Windows only)
-
-```
-ERROR Shell: Failed to locate the winutils binary in the hadoop binary path
-```
-
-Fix: Download `winutils.exe` and `hadoop.dll`, place in `C:\hadoop\bin\`, set `HADOOP_HOME=C:\hadoop`. See Step 6 of the Windows setup above.
-
-This warning can be **safely ignored** if it is just a WARN (not ERROR) — your scripts will still run.
 
 ---
 
