@@ -1,4 +1,4 @@
-# Day 2 - Reading Files in PySpark
+# Day 3 - Reading Files in PySpark
 
 ---
 

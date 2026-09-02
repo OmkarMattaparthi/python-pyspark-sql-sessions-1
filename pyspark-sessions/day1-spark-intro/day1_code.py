@@ -1,7 +1,7 @@
 """
-Day 1 - First PySpark Script
-Topics: SparkSession, createDataFrame, read CSV, show, printSchema,
-        select, filter, withColumn, groupBy, count, stop
+Day 1 - PySpark Setup & SparkSession
+Topics: Environment setup, SparkSession creation, createDataFrame,
+        printSchema, basic inspection
 """
 
 import os
@@ -17,15 +17,17 @@ os.environ['PYSPARK_PYTHON']        = r'C:\Users\hariom\AppData\Local\Programs\P
 os.environ['PYSPARK_DRIVER_PYTHON'] = r'C:\Users\hariom\AppData\Local\Programs\Python\Python311\python.exe'
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, upper, lit, avg, count
 
 # =============================================================
 # 1. Create a SparkSession
 # =============================================================
 # SparkSession is the single entry point to all Spark functionality.
+#
 # .master("local[*]") - run locally using ALL available CPU cores.
-# Use local[2] to use exactly 2 cores, local[1] for single-threaded.
-# .getOrCreate()      - returns existing session if one already exists.
+#                       local[2] = exactly 2 cores, local[1] = single thread
+# .appName(...)       - label shown in Spark UI (port 4040)
+# .getOrCreate()      - returns existing session if one already exists
+# spark.sql.shuffle.partitions - controls partitions after shuffle operations
 
 spark = SparkSession.builder \
     .appName("Day1 - PySpark Intro") \
@@ -40,14 +42,19 @@ print("=" * 60)
 print("SparkSession created")
 print(f"Spark version : {spark.version}")
 print(f"App name      : {spark.sparkContext.appName}")
+print(f"Master        : {spark.sparkContext.master}")
 print("=" * 60)
 
 
 # =============================================================
 # 2. Create a DataFrame from Python data (in-memory)
 # =============================================================
-# createDataFrame takes a list of tuples + list of column names.
-# This is the fastest way to create small test DataFrames.
+# createDataFrame(data, schema)
+#   data   - list of tuples (one tuple = one row)
+#   schema - list of column name strings
+#
+# This is the fastest way to create small test DataFrames
+# without needing any files.
 
 data = [
     ("Alice",   "Engineering",  85000, 30),
@@ -72,152 +79,50 @@ df.show()
 # 3. printSchema - understand column names and data types
 # =============================================================
 # Always run printSchema() first when working with a new dataset.
-# Shows the tree of column name -> data type -> nullable flag.
+# Shows: column name -> data type -> nullable flag.
+# Spark inferred types from the Python values (str -> string, int -> long).
 
 print("--- Schema ---")
 df.printSchema()
 
 
 # =============================================================
-# 4. Basic inspection
+# 4. Basic inspection methods
 # =============================================================
 
-print(f"Row count   : {df.count()}")
-print(f"Column count: {len(df.columns)}")
-print(f"Columns     : {df.columns}")
-
-
-# =============================================================
-# 5. select - choose specific columns
-# =============================================================
-# Spark does NOT modify the original df (DataFrames are immutable).
-# Every transformation returns a NEW DataFrame.
-
-print("\n--- select: name and salary only ---")
-df.select("name", "salary").show()
-
-# You can also use col() for expressions
-print("--- select using col() ---")
-df.select(col("name"), (col("salary") * 1.1).alias("salary_x1.1")).show()
+print(f"Row count    : {df.count()}")
+print(f"Column count : {len(df.columns)}")
+print(f"Columns      : {df.columns}")
+print(f"dtypes       : {df.dtypes}")
 
 
 # =============================================================
-# 6. filter / where - row filtering (both are equivalent)
+# 5. createDataFrame with explicit column types (StructType)
 # =============================================================
+# When you want Spark to use specific types instead of inferring,
+# pass a StructType schema as the second argument.
 
-print("--- filter: salary > 65000 ---")
-df.filter(col("salary") > 65000).show()
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
 
-print("--- filter: Engineering department ---")
-df.filter(col("department") == "Engineering").show()
+schema = StructType([
+    StructField("name",       StringType(),  True),
+    StructField("department", StringType(),  True),
+    StructField("salary",     DoubleType(),  True),   # force Double, not Long
+    StructField("age",        IntegerType(), True),
+])
 
-# Combining conditions: use & (AND) | (OR) - not Python 'and'/'or'
-print("--- filter: Engineering AND salary > 80000 ---")
-df.filter((col("department") == "Engineering") & (col("salary") > 80000)).show()
+df_typed = spark.createDataFrame(data, schema)
 
-
-# =============================================================
-# 7. withColumn - add or replace a column
-# =============================================================
-# First argument : column name (new or existing).
-# Second argument: the expression for the column's value.
-
-print("--- withColumn: add salary_usd (salary / 83) ---")
-df_with_usd = df.withColumn("salary_usd", (col("salary") / 83).cast("int"))
-df_with_usd.show()
-
-print("--- withColumn: uppercase department ---")
-df_upper = df.withColumn("department", upper(col("department")))
-df_upper.show()
-
-print("--- withColumn: add a constant column ---")
-df_const = df.withColumn("country", lit("India"))
-df_const.show()
+print("\n--- DataFrame with explicit schema (salary as Double) ---")
+df_typed.show()
+df_typed.printSchema()
 
 
 # =============================================================
-# 8. groupBy + aggregation
-# =============================================================
-# groupBy returns a GroupedData object.
-# Must follow with: agg(), count(), avg(), sum(), etc.
-
-print("--- groupBy department - count ---")
-df.groupBy("department").count().show()
-
-print("--- groupBy department - average salary ---")
-df.groupBy("department").agg(avg("salary").alias("avg_salary")).show()
-
-print("--- groupBy department - count + avg salary ---")
-df.groupBy("department") \
-  .agg(
-      count("*").alias("headcount"),
-      avg("salary").alias("avg_salary")
-  ) \
-  .show()
-
-
-# =============================================================
-# 9. orderBy - sort results
-# =============================================================
-
-print("--- orderBy salary DESC ---")
-df.orderBy(col("salary").desc()).show()
-
-print("--- orderBy department ASC, salary DESC ---")
-df.orderBy(col("department").asc(), col("salary").desc()).show()
-
-
-# =============================================================
-# 10. Lazy evaluation - nothing runs until an action is called
-# =============================================================
-# The lines below build up a plan - NO computation happens yet:
-
-plan = df \
-    .filter(col("age") > 28) \
-    .withColumn("seniority", lit("Senior")) \
-    .select("name", "department", "salary", "seniority")
-
-# explain() shows the physical execution plan Spark built
-print("--- Execution plan (explain) ---")
-plan.explain()
-
-# .show() is the ACTION that triggers the entire plan to run
-print("--- Result after running the plan ---")
-plan.show()
-
-
-# =============================================================
-# 11. Read a CSV file (most common real-world usage)
-# =============================================================
-# Uncomment and adjust the path to run this section.
-# header=True       - first row is column names
-# inferSchema=True  - Spark scans the file to detect types (slower)
-
-# df_csv = spark.read.csv(
-#     "path/to/your/file.csv",
-#     header=True,
-#     inferSchema=True
-# )
-# df_csv.show(5)
-# df_csv.printSchema()
-
-
-# =============================================================
-# 12. Convert to Pandas (for small results only)
-# =============================================================
-# .toPandas() collects ALL data to the Driver - only safe for small DataFrames.
-
-pandas_df = df.filter(col("department") == "Engineering").toPandas()
-print("\n--- Converted to Pandas ---")
-print(pandas_df)
-print(type(pandas_df))
-
-
-# =============================================================
-# 13. Stop the SparkSession
+# 6. Stop the SparkSession
 # =============================================================
 # Always stop Spark at the end of your script.
-# This releases resources and shuts down the Spark UI on port 4040.
+# Releases resources and shuts down the Spark UI on port 4040.
 
 spark.stop()
 print("\nSparkSession stopped. Done.")

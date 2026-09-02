@@ -1,5 +1,5 @@
 """
-Day 2 - Reading Files in PySpark
+Day 3 - Reading Files in PySpark
 Topics: CSV (all options), JSON (flat/nested/array/string), text files,
         inferSchema vs defined schema, DDL schema, multiLine, parse modes,
         nested struct access, explode, from_json, multiple files
@@ -33,7 +33,7 @@ from pyspark.sql import SparkSession
 # -------------------------------------------------------
 
 spark = SparkSession.builder \
-    .appName("Day2 - Reading Files") \
+    .appName("Day3 - Reading Files") \
     .master("local[*]") \
     .config("spark.sql.shuffle.partitions", "4") \
     .config("spark.ui.showConsoleProgress", "false") \
@@ -41,10 +41,10 @@ spark = SparkSession.builder \
 
 spark.sparkContext.setLogLevel("ERROR")
 
-DATA = "pyspark-sessions/day2-reading-files/data"
+DATA = "pyspark-sessions/day3-reading-files/data"
 
 print("=" * 60)
-print("Day 2 - Reading Files in PySpark")
+print("Day 3 - Reading Files in PySpark")
 print("=" * 60)
 
 
@@ -537,9 +537,9 @@ print("    Parquet : df.write.mode('overwrite').parquet('out/')")
 
 # Uncomment on Linux/Mac/Databricks:
 # df_schema.write.mode("overwrite").option("header", "true") \
-#     .csv("pyspark-sessions/day2-reading-files/output/employees_csv")
+#     .csv("pyspark-sessions/day3-reading-files/output/employees_csv")
 # df_nested.write.mode("overwrite") \
-#     .json("pyspark-sessions/day2-reading-files/output/employees_json")
+#     .json("pyspark-sessions/day3-reading-files/output/employees_json")
 
 
 # =============================================================
@@ -561,7 +561,7 @@ print("    Parquet : df.write.mode('overwrite').parquet('out/')")
 # Section 14 : from pyspark.sql.functions import input_file_name
 
 print("\n" + "=" * 60)
-print("Day 2 Complete")
+print("Day 3 Complete")
 print("=" * 60)
 
 spark.stop()
