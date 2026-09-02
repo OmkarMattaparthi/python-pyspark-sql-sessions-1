@@ -13,6 +13,8 @@
 8. [Write Modes](#8-write-modes)
 9. [Key Options Reference](#9-key-options-reference)
 
+> **Also in this folder:** [jupyter_setup.md](jupyter_setup.md) — Jupyter Notebook installation guide for Windows / macOS / Ubuntu, running PySpark in notebooks, keyboard shortcuts, and troubleshooting.
+
 ---
 
 ## 1. How Spark Reads Files
