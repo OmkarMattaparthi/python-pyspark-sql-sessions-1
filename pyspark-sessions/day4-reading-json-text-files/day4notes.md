@@ -1,6 +1,6 @@
 # Day 4 - Reading JSON and Text Files in PySpark
 
-> Data files are in `../day3-reading-csv-files/data/` (shared with Day 3).
+> Data files are in `data/` inside this folder.
 
 ---
 
