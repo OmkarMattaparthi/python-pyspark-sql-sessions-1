@@ -1,78 +1,173 @@
-# Day 3 - Reading Files in PySpark
-
----
-
-## Table of Contents
-1. [How Spark Reads Files](#1-how-spark-reads-files)
-2. [Reading CSV](#2-reading-csv)
-3. [Schema - inferSchema vs Defined Schema](#3-schema---inferschema-vs-defined-schema)
-4. [Reading JSON](#4-reading-json)
-5. [Handling Nested JSON](#5-handling-nested-json)
-6. [Reading Plain Text Files](#6-reading-plain-text-files)
-7. [Reading Multiple Files](#7-reading-multiple-files)
-8. [Write Modes](#8-write-modes)
-9. [Key Options Reference](#9-key-options-reference)
+# Day 3 - Reading CSV Files in PySpark
 
 > **Also in this folder:** [jupyter_setup.md](jupyter_setup.md) — Jupyter Notebook installation guide for Windows / macOS / Ubuntu, running PySpark in notebooks, keyboard shortcuts, and troubleshooting.
 
 ---
 
+## Table of Contents
+1. [How Spark Reads Files](#1-how-spark-reads-files)
+2. [Reading CSV - Basic](#2-reading-csv---basic)
+3. [option() and options() Styles](#3-option-and-options-styles)
+4. [No Header Row](#4-no-header-row)
+5. [Custom Delimiter](#5-custom-delimiter)
+6. [Multiline Values](#6-multiline-values)
+7. [Dirty Data and Parse Modes](#7-dirty-data-and-parse-modes)
+8. [inferSchema vs Defined Schema](#8-inferschema-vs-defined-schema)
+9. [Reading Multiple CSV Files](#9-reading-multiple-csv-files)
+10. [Write Modes](#10-write-modes)
+11. [CSV Options Reference](#11-csv-options-reference)
+
+---
+
 ## 1. How Spark Reads Files
 
-Spark reads files **lazily** - calling `spark.read.csv(...)` does NOT read the data yet.
-The read only happens when an action is triggered (`show()`, `count()`, `write()`).
+Spark reads files **lazily** — calling `spark.read.csv(...)` does NOT read the data yet. The read only happens when an action is triggered (`show()`, `count()`, `write()`).
 
-### The read API pattern
+### The read API — two styles
 
-```
-spark.read
-     .format("csv")          # or json, parquet, text, orc
-     .option("key", "value") # one or more options
-     .schema(my_schema)      # optional - define schema explicitly
-     .load("path/to/file")   # trigger the plan creation
-```
-
-Shorthand equivalents:
+**Shorthand (most common):**
 ```python
-spark.read.csv("path")     # same as .format("csv").load("path")
-spark.read.json("path")    # same as .format("json").load("path")
-spark.read.parquet("path") # same as .format("parquet").load("path")
-spark.read.text("path")    # same as .format("text").load("path")
+spark.read.csv("path/to/file.csv", header=True, inferSchema=True)
+```
+
+**Full format style (explicit):**
+```python
+spark.read \
+    .format("csv") \
+    .option("header", "true") \
+    .option("inferSchema", "true") \
+    .load("path/to/file.csv")
+```
+
+Both are identical. The shorthand is preferred for CSV.
+
+---
+
+## 2. Reading CSV - Basic
+
+```python
+df = spark.read.csv("employees.csv", header=True, inferSchema=True)
+df.show()
+df.printSchema()
+```
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `header` | `False` | First row becomes column names |
+| `inferSchema` | `False` | Auto-detect column types (reads file twice) |
+
+Without `header=True`, Spark names columns `_c0`, `_c1`, `_c2` ...  
+Without `inferSchema=True`, every column is read as `StringType`.
+
+---
+
+## 3. option() and options() Styles
+
+Two ways to pass multiple options:
+
+```python
+# Chain .option() one at a time — clearest to read
+df = spark.read \
+    .option("header", "true") \
+    .option("inferSchema", "true") \
+    .option("nullValue", "N/A") \
+    .option("dateFormat", "yyyy-MM-dd") \
+    .csv("file.csv")
+
+# Pass all at once with .options()
+df = spark.read \
+    .options(header="true", inferSchema="true", nullValue="N/A") \
+    .csv("file.csv")
 ```
 
 ---
 
-## 2. Reading CSV
+## 4. No Header Row
 
-### Most common options
+When the file has no header, Spark uses `_c0`, `_c1`, `_c2` ...
 
-| Option | Values | Default | What it does |
-|---|---|---|---|
-| `header` | `true` / `false` | `false` | First row is column names |
-| `inferSchema` | `true` / `false` | `false` | Auto-detect column types |
-| `sep` | any string | `,` | Column delimiter |
-| `nullValue` | any string | `""` | String to treat as NULL |
-| `nanValue` | any string | `NaN` | String to treat as NaN |
-| `dateFormat` | pattern string | `yyyy-MM-dd` | Parse date columns |
-| `timestampFormat` | pattern string | ISO 8601 | Parse timestamp columns |
-| `multiLine` | `true` / `false` | `false` | Allow values spanning multiple lines |
-| `mode` | `PERMISSIVE` / `DROPMALFORMED` / `FAILFAST` | `PERMISSIVE` | How to handle bad rows |
-| `encoding` | `UTF-8`, `UTF-16`, etc. | `UTF-8` | File character encoding |
-| `quote` | any char | `"` | Quote character for wrapping values |
-| `escape` | any char | `\` | Escape character inside quotes |
-| `ignoreLeadingWhiteSpace` | `true` / `false` | `false` | Strip leading spaces |
-| `ignoreTrailingWhiteSpace` | `true` / `false` | `false` | Strip trailing spaces |
-| `columnNameOfCorruptRecord` | column name | `_corrupt_record` | Column to store bad rows in PERMISSIVE mode |
+```python
+df = spark.read.csv("file.csv", header=False, inferSchema=True)
+df.show()  # columns: _c0, _c1, _c2 ...
 
-### Parse modes explained
+# Rename all columns at once
+df = df.toDF("emp_id", "name", "department", "salary", "age", "join_date", "is_active")
+```
 
-- **PERMISSIVE** (default): Reads all rows. Corrupt rows get NULL for all columns. The raw bad row is stored in `_corrupt_record` column if schema is defined.
-- **DROPMALFORMED**: Silently drops rows that can't be parsed.
-- **FAILFAST**: Throws an exception on the first bad row. Use in production to catch data quality issues early.
+Or provide a schema (see Section 8) — Spark uses the schema's field names directly.
 
 ---
 
-## 3. Schema - inferSchema vs Defined Schema
+## 5. Custom Delimiter
+
+```python
+# Pipe-delimited
+df = spark.read.csv("file.csv", header=True, sep="|")
+
+# Tab-delimited (TSV)
+df = spark.read.csv("file.tsv", header=True, sep="\t")
+
+# Semicolon
+df = spark.read.csv("file.csv", header=True, sep=";")
+```
+
+Default separator is `,`.
+
+---
+
+## 6. Multiline Values
+
+When a column value contains a newline and is wrapped in quotes:
+
+```
+emp_id,name,bio
+1,Alice,"Engineer,
+loves Python"
+```
+
+```python
+df = spark.read.csv(
+    "file.csv",
+    header=True,
+    multiLine=True,
+    quote='"',
+    escape='"'
+)
+```
+
+Without `multiLine=True`, Spark treats the newline inside the quotes as a new row and the record breaks.
+
+---
+
+## 7. Dirty Data and Parse Modes
+
+| Mode | Behavior |
+|---|---|
+| `PERMISSIVE` (default) | Keeps all rows. Values that don't match the schema become NULL. |
+| `DROPMALFORMED` | Silently drops rows that cannot be parsed. |
+| `FAILFAST` | Throws an exception on the first bad row. Use in production. |
+
+```python
+# PERMISSIVE (default) + treat "N/A" as NULL
+df = spark.read.csv("dirty.csv", header=True, inferSchema=True, nullValue="N/A")
+
+# DROPMALFORMED
+df = spark.read \
+    .option("header", "true") \
+    .option("inferSchema", "true") \
+    .option("mode", "DROPMALFORMED") \
+    .csv("dirty.csv")
+
+# FAILFAST
+df = spark.read \
+    .option("header", "true") \
+    .option("mode", "FAILFAST") \
+    .csv("dirty.csv")
+```
+
+---
+
+## 8. inferSchema vs Defined Schema
 
 ### inferSchema (automatic, convenient)
 
@@ -80,15 +175,17 @@ spark.read.text("path")    # same as .format("text").load("path")
 df = spark.read.csv("file.csv", header=True, inferSchema=True)
 ```
 
-- Spark reads the file **twice**: first pass to sample and detect types, second pass to load data
-- Slower on large files
-- May guess wrong (e.g. a zip code `"07001"` becomes integer `7001`)
+- Reads the file **twice** — slow on large files
+- May guess wrong (zip code `"07001"` → integer `7001`)
 - Fine for exploration and small files
 
-### Defined Schema (explicit, production-ready)
+### StructType — explicit schema (production-ready)
 
 ```python
-from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DoubleType, BooleanType, DateType
+from pyspark.sql.types import (
+    StructType, StructField,
+    IntegerType, StringType, DoubleType, BooleanType, DateType
+)
 
 schema = StructType([
     StructField("emp_id",     IntegerType(), True),
@@ -100,181 +197,95 @@ schema = StructType([
     StructField("is_active",  BooleanType(), True),
 ])
 
+df = spark.read \
+    .schema(schema) \
+    .option("header", "true") \
+    .option("dateFormat", "yyyy-MM-dd") \
+    .csv("file.csv")
+```
+
+### DDL string — shortcut
+
+```python
+schema = "emp_id INT, name STRING, department STRING, salary DOUBLE, age INT, join_date DATE, is_active BOOLEAN"
 df = spark.read.schema(schema).csv("file.csv", header=True)
 ```
 
-- File is read **once** - faster
-- You control exact types
-- Mismatched values become NULL (in PERMISSIVE mode)
-- Recommended for production pipelines
+### Comparison
 
-### Common PySpark data types
+| | inferSchema | StructType / DDL |
+|---|---|---|
+| Speed | Slow (reads twice) | Fast (reads once) |
+| Type control | Auto-guessed | Exact |
+| Bad value handling | May silently mis-cast | Becomes NULL (PERMISSIVE) |
+| When to use | Exploration | Production |
 
-| Type | Python class | Use for |
+### Common PySpark types
+
+| Type | Class | Use for |
 |---|---|---|
 | String | `StringType()` | Text |
 | Integer | `IntegerType()` | Whole numbers (32-bit) |
 | Long | `LongType()` | Large whole numbers (64-bit) |
 | Double | `DoubleType()` | Decimal numbers (64-bit float) |
-| Float | `FloatType()` | Decimal numbers (32-bit float) |
-| Boolean | `BooleanType()` | true/false |
+| Boolean | `BooleanType()` | true / false |
 | Date | `DateType()` | Date only (yyyy-MM-dd) |
 | Timestamp | `TimestampType()` | Date + time |
-| Decimal | `DecimalType(p,s)` | Fixed precision numbers (finance) |
 
-### DDL schema string (shortcut)
+---
 
-Instead of StructType, you can write schema as a SQL DDL string:
+## 9. Reading Multiple CSV Files
 
 ```python
-schema = "emp_id INT, name STRING, department STRING, salary DOUBLE, age INT"
-df = spark.read.schema(schema).csv("file.csv", header=True)
+from pyspark.sql.functions import input_file_name
+
+# List of specific files — works on ALL platforms
+df = spark.read.csv(["file1.csv", "file2.csv"], header=True)
+
+# Whole folder — Linux/Mac/Databricks only
+df = spark.read.csv("data/", header=True)
+
+# Wildcard — Linux/Mac/Databricks only
+df = spark.read.csv("data/employees_*.csv", header=True)
+
+# Trace which file each row came from
+df = spark.read.csv(["file1.csv", "file2.csv"], header=True) \
+    .withColumn("source_file", input_file_name())
 ```
 
 ---
 
-## 4. Reading JSON
-
-### Two JSON formats Spark supports
-
-**1. JSON Lines (JSONL) - one JSON object per line (default)**
-```
-{"id": 1, "name": "Alice"}
-{"id": 2, "name": "Bob"}
-```
-Spark reads this natively - each line = one row.
-
-**2. Multi-line JSON - entire file is one JSON array**
-```json
-[
-  {"id": 1, "name": "Alice"},
-  {"id": 2, "name": "Bob"}
-]
-```
-Requires `multiLine=True` option.
-
-### Key JSON options
-
-| Option | Values | Default | What it does |
-|---|---|---|---|
-| `multiLine` | `true` / `false` | `false` | Read whole file as one JSON doc |
-| `allowComments` | `true` / `false` | `false` | Allow `//` and `/* */` comments |
-| `allowUnquotedFieldNames` | `true` / `false` | `false` | Allow `{name: "Alice"}` style |
-| `allowSingleQuotes` | `true` / `false` | `false` | Allow `{'name': 'Alice'}` |
-| `allowNumericLeadingZeros` | `true` / `false` | `false` | Allow `007` as a number |
-| `mode` | `PERMISSIVE` / `DROPMALFORMED` / `FAILFAST` | `PERMISSIVE` | Bad record handling |
-| `dateFormat` | pattern | `yyyy-MM-dd` | Date parsing |
-| `timestampFormat` | pattern | ISO 8601 | Timestamp parsing |
-| `primitivesAsString` | `true` / `false` | `false` | Read all values as strings |
-| `columnNameOfCorruptRecord` | column name | `_corrupt_record` | Store bad JSON rows |
-
----
-
-## 5. Handling Nested JSON
-
-JSON often contains nested objects and arrays. Spark reads these into special types.
-
-### Nested object -> StructType
-```json
-{"name": "Alice", "address": {"city": "Bangalore", "pincode": "560001"}}
-```
-Access with dot notation: `col("address.city")`
-
-### Array field -> ArrayType
-```json
-{"name": "Alice", "skills": ["Python", "Spark", "SQL"]}
-```
-Use `explode()` to flatten: each skill becomes its own row.
-
-### Key functions for nested data
-
-| Function | What it does |
-|---|---|
-| `col("struct.field")` | Access nested struct field |
-| `explode(col("array_col"))` | One row per array element |
-| `explode_outer(col("array_col"))` | Like explode but keeps rows with empty/null arrays |
-| `posexplode(col("array_col"))` | Explode with position index |
-| `from_json(col("json_string"), schema)` | Parse a JSON string column into struct |
-| `to_json(col("struct_col"))` | Convert struct column to JSON string |
-| `get_json_object(col("json_str"), "$.key")` | Extract one field from a JSON string |
-| `json_tuple(col("json_str"), "k1", "k2")` | Extract multiple fields from a JSON string |
-
----
-
-## 6. Reading Plain Text Files
+## 10. Write Modes
 
 ```python
-df = spark.read.text("file.txt")
+df.write.mode("overwrite").option("header", "true").csv("output/folder")
 ```
 
-Spark reads each line as a single string column called `value`.
-
-Useful for:
-- Log files
-- Raw text that needs regex parsing
-- Files with custom formats
-
-After reading, use `regexp_extract()` or `split()` to parse the `value` column.
-
----
-
-## 7. Reading Multiple Files
-
-```python
-# All CSVs in a folder
-df = spark.read.csv("path/to/folder/", header=True)
-
-# Wildcard pattern
-df = spark.read.csv("data/emp_*.csv", header=True)
-
-# List of specific files
-df = spark.read.csv(["data/file1.csv", "data/file2.csv"], header=True)
-
-# Add source filename as a column (useful when reading a folder)
-df = spark.read.csv("data/", header=True).withColumn("source_file", input_file_name())
-```
-
----
-
-## 8. Write Modes
-
-After reading and transforming, write results back with `.write`:
-
-```python
-df.write.mode("overwrite").csv("output/employees")
-df.write.mode("overwrite").json("output/employees_json")
-df.write.mode("overwrite").parquet("output/employees_parquet")
-```
-
-| Mode | Behaviour |
+| Mode | Behavior |
 |---|---|
 | `overwrite` | Delete existing data and write fresh |
 | `append` | Add to existing data |
 | `ignore` | Do nothing if path already exists |
-| `error` (default) | Throw exception if path already exists |
+| `error` | Throw exception if path exists (default) |
+
+Spark writes a **folder**, not a single file. Inside: one `part-*.csv` per partition.
 
 ---
 
-## 9. Key Options Reference
+## 11. CSV Options Reference
 
-### CSV vs JSON comparison
-
-| Feature | CSV | JSON |
+| Option | Default | What it does |
 |---|---|---|
-| Nested data | No | Yes |
-| Schema in file | No (header = column names only) | Partial (inferred from values) |
-| Human readable | Yes | Yes |
-| Default in Spark | Needs `header=True` | Works out of box for JSONL |
-| Multi-line values | `multiLine=True` | `multiLine=True` for arrays |
-| Performance | Slower (text parsing) | Slower (text parsing) |
-| Production format | Avoid - use Parquet | Avoid - use Parquet |
-
-### Why Parquet in production?
-
-Parquet is a **columnar binary format** - not covered today but worth knowing:
-- 5-10x smaller than CSV (columnar compression)
-- 10-100x faster reads (column pruning - only reads columns you need)
-- Schema embedded in file - no inferSchema needed
-- Supports complex types natively (arrays, structs)
-
-Day 3 onwards we'll work with Parquet. For now CSV and JSON are used to understand reading fundamentals.
+| `header` | `false` | First row is column names |
+| `inferSchema` | `false` | Auto-detect column types |
+| `sep` | `,` | Column delimiter |
+| `nullValue` | `""` | String treated as NULL |
+| `dateFormat` | `yyyy-MM-dd` | Parse date columns |
+| `timestampFormat` | ISO 8601 | Parse timestamp columns |
+| `multiLine` | `false` | Allow values spanning multiple lines |
+| `mode` | `PERMISSIVE` | How to handle bad rows |
+| `quote` | `"` | Quote character |
+| `escape` | `\` | Escape character inside quotes |
+| `ignoreLeadingWhiteSpace` | `false` | Strip leading spaces |
+| `ignoreTrailingWhiteSpace` | `false` | Strip trailing spaces |
+| `encoding` | `UTF-8` | File character encoding |
