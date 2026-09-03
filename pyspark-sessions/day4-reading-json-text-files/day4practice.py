@@ -16,7 +16,7 @@ os.environ['PYSPARK_DRIVER_PYTHON'] = r'C:\Users\hariom\AppData\Local\Programs\P
 from pyspark.sql import SparkSession
 
 # -------------------------------------------------------
-# Files used in this session (inside day3-reading-files/data/)
+# Files used in this session (inside day3-reading-csv-files/data/)
 # Shared data folder — same files as Day 3
 # -------------------------------------------------------
 # employees_flat.json     - one JSON object per line (JSONL)
@@ -36,7 +36,7 @@ spark = SparkSession.builder \
 spark.sparkContext.setLogLevel("ERROR")
 
 # Data lives in the day3 folder (shared)
-DATA = "pyspark-sessions/day3-reading-files/data"
+DATA = "pyspark-sessions/day3-reading-csv-files/data"
 
 print("=" * 60)
 print("Day 4 - Reading JSON and Text Files in PySpark")
