@@ -149,6 +149,7 @@ col("is_returned").cast("int")      # True -> 1, False -> 0
 | Boolean → Int | `true → 1`, `false → 0` |
 | Bad cast | Returns **NULL**, does not throw an error |
 | String → Int | Returns NULL if string is not a valid number |
+| Date → String | Returns String |
 
 ### Check types
 ```python
